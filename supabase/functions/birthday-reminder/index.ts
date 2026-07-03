@@ -154,34 +154,47 @@ async function sendGreeting(
   if (!GRAPH_SENDER) throw new Error("GRAPH_SENDER not configured");
   const to = opts.toOverride ?? p.person_email;
   if (!to) throw new Error("no recipient email");
-  const first = esc(firstNameOf(p.full_name));
+  const name = firstNameOf(p.full_name);
 
-  let subject: string, heading: string, lead: string, accent: string;
+  let subject: string, heading: string, accent: string, paras: string[], signoff: string;
   if (kind === "birthday") {
     accent = "#7a5c8e";
-    subject = `🎂 Happy Birthday, ${firstNameOf(p.full_name)}!`;
-    heading = "🎂 Happy Birthday!";
-    lead = `Happy birthday, ${first}! Wishing you a wonderful day filled with joy, laughter, and all your favourite things. Thank you for being part of the Arete Care family — we're so glad to celebrate you today. 💛`;
+    subject = `Happy Birthday, ${name}`;
+    heading = "🎂 Happy Birthday";
+    paras = [
+      `On behalf of everyone at Arete Care, I would like to wish you a very happy birthday. We hope the day is a joyful and restful one, spent in the company of the people who matter most to you.`,
+      `Thank you for the dedication, care, and warmth you bring to our team each day. We feel truly fortunate to have you with us, and we look forward to celebrating many more milestones together.`,
+    ];
+    signoff = "With our very best wishes,";
   } else {
     const years = p.hire_date ? year - Number(p.hire_date.slice(0, 4)) : 0;
     accent = "#3a9ca3";
-    subject = `🎉 Happy ${ordinal(years)} Work Anniversary, ${firstNameOf(p.full_name)}!`;
-    heading = `🎉 ${years} year${years === 1 ? "" : "s"} with Arete Care`;
-    lead = `Happy ${ordinal(years)} work anniversary, ${first}! Thank you for the care, dedication, and heart you've brought to Arete Care over the past ${years} year${years === 1 ? "" : "s"}. We're grateful to have you on the team, today and every day. 🌿`;
+    subject = `Congratulations on Your ${ordinal(years)} Work Anniversary, ${name}`;
+    heading = `🎉 ${years} Year${years === 1 ? "" : "s"} of Service`;
+    paras = [
+      `Today marks your ${ordinal(years)} anniversary with Arete Care, and we would like to take a moment to recognise this milestone and to thank you most sincerely.`,
+      `Over the past ${years} year${years === 1 ? "" : "s"}, your commitment, professionalism, and genuine care have made a meaningful difference — to our team, and to those we have the privilege of serving. We are proud to have you as part of the Arete Care family, and we look forward to the years ahead together.`,
+    ];
+    signoff = "With sincere appreciation,";
   }
+
+  const bodyParas = [
+    `<p style="margin:0 0 16px;font-size:16px;line-height:1.75">Dear ${esc(name)},</p>`,
+    ...paras.map((t) => `<p style="margin:0 0 16px;font-size:15px;line-height:1.75;color:#2c2740">${esc(t)}</p>`),
+    `<p style="margin:22px 0 0;font-size:15px;line-height:1.75">${esc(signoff)}<br><strong>The Arete Care Team</strong></p>`,
+  ].join("");
 
   const html = `
     <div style="margin:0;padding:0;background:#f3f6f7">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f6f7;padding:24px 12px">
         <tr><td align="center">
-          <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;font-family:'Segoe UI',Inter,system-ui,Arial,sans-serif;color:#2c2740">
-            <tr><td style="background:${accent};padding:30px 28px;border-radius:14px 14px 0 0;text-align:center">
-              <div style="font-size:26px;font-weight:800;color:#ffffff;line-height:1.2">${heading}</div>
-              <div style="font-size:13px;color:#ffffff;opacity:.9;margin-top:8px">Arete Care · Empowering Souls</div>
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;font-family:Georgia,'Times New Roman',serif;color:#2c2740">
+            <tr><td style="background:${accent};padding:30px 28px;border-radius:14px 14px 0 0;text-align:center;font-family:'Segoe UI',Inter,system-ui,Arial,sans-serif">
+              <div style="font-size:23px;font-weight:800;color:#ffffff;line-height:1.25">${heading}</div>
+              <div style="font-size:12px;letter-spacing:.5px;color:#ffffff;opacity:.9;margin-top:8px">ARETE CARE · EMPOWERING SOULS</div>
             </td></tr>
-            <tr><td style="background:#ffffff;padding:28px;border:1px solid #e4e6ee;border-top:0;border-radius:0 0 14px 14px">
-              <p style="margin:0;font-size:16px;line-height:1.65">${lead}</p>
-              <p style="margin:24px 0 0;font-size:14px;color:#2c2740">With warm wishes,<br><strong>The Arete Care Team</strong></p>
+            <tr><td style="background:#ffffff;padding:32px 32px 28px;border:1px solid #e4e6ee;border-top:0;border-radius:0 0 14px 14px">
+              ${bodyParas}
             </td></tr>
           </table>
         </td></tr>
