@@ -1,0 +1,90 @@
+import { supabase, hasSupabaseConfig } from './supabase'
+
+// Two backends behind one API:
+//   • Supabase mode  — reads come straight from the table (RLS: anon can SELECT);
+//     writes + test-send go through the access-code-gated Edge Function.
+//   • Demo mode      — no env configured → everything is localStorage, no code.
+
+const FN_URL = import.meta.env.VITE_FUNCTIONS_URL
+const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY
+const LOCAL_KEY = 'arete-bday-demo'
+
+export const isDemo = !hasSupabaseConfig
+export const hasFunctions = Boolean(FN_URL)
+
+// ── Edge Function call ────────────────────────────────────────────────────────
+async function callFn(payload) {
+  if (!FN_URL) throw new Error('VITE_FUNCTIONS_URL is not set — cannot reach the backend.')
+  const res = await fetch(FN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: ANON,
+      Authorization: `Bearer ${ANON}`,
+    },
+    body: JSON.stringify(payload),
+  })
+  let data = {}
+  try { data = await res.json() } catch { /* non-JSON */ }
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`)
+  return data
+}
+
+// ── localStorage demo backend ────────────────────────────────────────────────
+function localRead() {
+  try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]') } catch { return [] }
+}
+function localWrite(rows) {
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(rows))
+}
+function uid() {
+  return crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random())
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+export async function listBirthdays() {
+  if (isDemo) return localRead()
+  const { data, error } = await supabase.from('birthdays').select('*').order('full_name')
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
+export async function verifyCode(accessCode) {
+  await callFn({ mode: 'verify', accessCode })
+  return true
+}
+
+export async function createBirthday(accessCode, payload) {
+  if (isDemo) {
+    const rows = localRead()
+    const row = { id: uid(), is_active: true, created_at: new Date().toISOString(), ...payload }
+    localWrite([...rows, row])
+    return row
+  }
+  const { data } = await callFn({ mode: 'write', op: 'create', accessCode, payload })
+  return data
+}
+
+export async function updateBirthday(accessCode, payload) {
+  if (isDemo) {
+    const rows = localRead().map((r) => (r.id === payload.id ? { ...r, ...payload } : r))
+    localWrite(rows)
+    return rows.find((r) => r.id === payload.id)
+  }
+  const { data } = await callFn({ mode: 'write', op: 'update', accessCode, payload })
+  return data
+}
+
+export async function removeBirthday(accessCode, id) {
+  if (isDemo) {
+    localWrite(localRead().filter((r) => r.id !== id))
+    return { id }
+  }
+  const { data } = await callFn({ mode: 'write', op: 'remove', accessCode, payload: { id } })
+  return data
+}
+
+export async function sendTestEmail(accessCode) {
+  if (isDemo) throw new Error('Test email needs the live Supabase backend (demo mode is offline).')
+  return callFn({ mode: 'test', accessCode })
+}

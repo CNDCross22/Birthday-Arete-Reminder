@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply text-ink antialiased;
+  background:
+    radial-gradient(900px 420px at 100% -5%, #f0eaf5, transparent 60%),
+    radial-gradient(820px 420px at -5% 8%, #e6f4f3, transparent 60%),
+    #f3f6f7;
+}
+
+/* Touch behaviour: kill the grey tap-flash and double-tap zoom on controls. */
+a,
+button,
+select,
+input,
+textarea,
+[role='button'] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+@media (max-width: 1023px) {
+  /* iOS Safari zooms when a focused control is < 16px. */
+  input:not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+@layer base {
+  a,
+  button,
+  select,
+  summary,
+  input,
+  textarea,
+  [role='button'] {
+    @apply transition duration-150 ease-out;
+  }
+  button:not(:disabled):active {
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
+}
