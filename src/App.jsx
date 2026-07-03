@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react'
-import { Plus, Search, Send, LogOut, Loader2, WifiOff } from 'lucide-react'
+import { Plus, Search, Send, LogOut, Loader2, WifiOff, Upload, Users } from 'lucide-react'
 import { useBirthdays } from './hooks/useBirthdays'
 import { useToast } from './components/Toast'
 import { useAccess } from './auth/AccessGate'
-import { isDemo, hasFunctions, createBirthday, updateBirthday, removeBirthday, sendTestEmail } from './lib/api'
+import { isDemo, hasFunctions, createBirthday, updateBirthday, removeBirthday, sendTestEmail, importBirthdays } from './lib/api'
 import { daysUntilNextBirthday } from './lib/dates'
 import BirthdayList from './components/BirthdayList'
 import BirthdayForm from './components/BirthdayForm'
 import ConfirmDialog from './components/ConfirmDialog'
+import ImportModal from './components/ImportModal'
+import RecipientsModal from './components/RecipientsModal'
 
 const LEAD_DAYS = 7
 
@@ -20,6 +22,8 @@ export default function App() {
   const [editing, setEditing] = useState(null) // row or {} for new
   const [deleting, setDeleting] = useState(null)
   const [testing, setTesting] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [showRecipients, setShowRecipients] = useState(false)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -52,12 +56,19 @@ export default function App() {
     setTesting(true)
     try {
       const res = await sendTestEmail(code)
-      toast(`Test email sent (${res.count} name${res.count === 1 ? '' : 's'}). Check the team inbox.`)
+      toast(`Test email sent (${res.count} name${res.count === 1 ? '' : 's'}). Check the recipients' inbox.`)
     } catch (e) {
       toast(e.message || 'Test failed.', 'error')
     } finally {
       setTesting(false)
     }
+  }
+
+  const doImport = async (rows) => {
+    const res = await importBirthdays(code, rows)
+    await reload()
+    setShowImport(false)
+    toast(`Imported ${res.imported}${res.skipped ? ` (${res.skipped} already existed)` : ''}.`)
   }
 
   return (
@@ -96,6 +107,22 @@ export default function App() {
             className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
           />
         </div>
+        <button
+          onClick={() => setShowImport(true)}
+          className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-ink hover:bg-slate-50"
+          title="Import from CSV or Excel"
+        >
+          <Upload size={16} /> <span className="hidden sm:inline">Import</span>
+        </button>
+        {!isDemo && hasFunctions && (
+          <button
+            onClick={() => setShowRecipients(true)}
+            className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-ink hover:bg-slate-50"
+            title="Manage who receives the email"
+          >
+            <Users size={16} /> <span className="hidden sm:inline">Recipients</span>
+          </button>
+        )}
         {!isDemo && hasFunctions && (
           <button
             onClick={runTest}
@@ -104,7 +131,7 @@ export default function App() {
             title="Send a test email now"
           >
             {testing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            <span className="hidden sm:inline">Test email</span>
+            <span className="hidden sm:inline">Test</span>
           </button>
         )}
         <button
@@ -151,6 +178,8 @@ export default function App() {
           onConfirm={confirmDelete}
         />
       )}
+      {showImport && <ImportModal onClose={() => setShowImport(false)} onImport={doImport} />}
+      {showRecipients && <RecipientsModal accessCode={code} onClose={() => setShowRecipients(false)} />}
     </div>
   )
 }

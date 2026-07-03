@@ -88,3 +88,39 @@ export async function sendTestEmail(accessCode) {
   if (isDemo) throw new Error('Test email needs the live Supabase backend (demo mode is offline).')
   return callFn({ mode: 'test', accessCode })
 }
+
+// Bulk import from CSV/Excel. Dedups on name + date. Works in demo mode too.
+export async function importBirthdays(accessCode, rows) {
+  if (isDemo) {
+    const existing = localRead()
+    const seen = new Set(existing.map((r) => `${(r.full_name || '').toLowerCase()}|${r.birth_date}`))
+    const add = []
+    for (const r of rows) {
+      const k = `${(r.full_name || '').toLowerCase()}|${r.birth_date}`
+      if (seen.has(k)) continue
+      seen.add(k)
+      add.push({ id: uid(), is_active: true, created_at: new Date().toISOString(), ...r })
+    }
+    localWrite([...existing, ...add])
+    return { imported: add.length, skipped: rows.length - add.length, total: rows.length }
+  }
+  const { data } = await callFn({ mode: 'write', op: 'createMany', accessCode, payload: { rows } })
+  return data
+}
+
+// Recipients (who gets the heads-up) — live backend only; gated by the Edge Function.
+export async function listRecipients(accessCode) {
+  const { data } = await callFn({ mode: 'recipients', op: 'list', accessCode })
+  return data ?? []
+}
+export async function addRecipient(accessCode, email, name) {
+  const { data } = await callFn({ mode: 'recipients', op: 'add', accessCode, payload: { email, name } })
+  return data
+}
+export async function removeRecipient(accessCode, id) {
+  return callFn({ mode: 'recipients', op: 'remove', accessCode, payload: { id } })
+}
+export async function toggleRecipient(accessCode, id, is_active) {
+  const { data } = await callFn({ mode: 'recipients', op: 'toggle', accessCode, payload: { id, is_active } })
+  return data
+}

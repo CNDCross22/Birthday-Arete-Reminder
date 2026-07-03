@@ -50,6 +50,7 @@ const te = new TextEncoder();
 // ── Small helpers ────────────────────────────────────────────────────────────
 const pad = (n: number) => String(n).padStart(2, "0");
 const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+const dupKey = (name: string, date: string) => `${name.trim().toLowerCase()}|${date}`;
 
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -145,6 +146,14 @@ function esc(s: string) {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 }
 
+// Who gets the heads-up: the active rows in `recipients`, or the TEAM_RECIPIENTS
+// secret as a fallback when the table is empty.
+async function activeRecipients(): Promise<string[]> {
+  const { data } = await supa.from("recipients").select("email").eq("is_active", true);
+  const fromTable = (data ?? []).map((r) => r.email as string).filter(Boolean);
+  return fromTable.length ? fromTable : TEAM_RECIPIENTS;
+}
+
 async function graphToken(): Promise<string> {
   const form = new URLSearchParams({
     client_id: GRAPH_CLIENT_ID,
@@ -167,7 +176,8 @@ async function sendEmail(people: Row[], opts: { testMode: boolean }) {
     throw new Error("GRAPH_TENANT_ID / GRAPH_CLIENT_ID / GRAPH_CLIENT_SECRET not configured");
   }
   if (!GRAPH_SENDER) throw new Error("GRAPH_SENDER not configured");
-  if (TEAM_RECIPIENTS.length === 0) throw new Error("TEAM_RECIPIENTS not configured");
+  const recipients = await activeRecipients();
+  if (recipients.length === 0) throw new Error("No recipients — add some in the Recipients manager (or set TEAM_RECIPIENTS)");
 
   const dateFmt = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "long", timeZone: "UTC" });
   const nice = (iso: string) => dateFmt.format(new Date(iso + "T00:00:00Z"));
@@ -199,7 +209,7 @@ async function sendEmail(people: Row[], opts: { testMode: boolean }) {
   const message = {
     subject,
     body: { contentType: "HTML", content: html },
-    toRecipients: TEAM_RECIPIENTS.map((address) => ({ emailAddress: { address } })),
+    toRecipients: recipients.map((address) => ({ emailAddress: { address } })),
   };
   const token = await graphToken();
   const res = await fetch(
@@ -288,7 +298,64 @@ async function handleWrite(op: string, payload: Record<string, unknown>) {
     if (error) throw error;
     return { id };
   }
+  if (op === "createMany") {
+    const rawRows = Array.isArray(payload.rows) ? (payload.rows as Record<string, unknown>[]) : [];
+    const clean = rawRows.map(sanitize).filter((r) => r.full_name && r.birth_date) as
+      unknown as { full_name: string; birth_date: string }[];
+    if (!clean.length) return { imported: 0, skipped: 0, total: rawRows.length };
+    // Dedup against everything already stored, on name + date.
+    const { data: existing } = await supa.from("birthdays").select("full_name, birth_date");
+    const seen = new Set((existing ?? []).map((e) => dupKey(e.full_name, e.birth_date)));
+    const toInsert: Record<string, unknown>[] = [];
+    for (const r of clean) {
+      const k = dupKey(r.full_name, r.birth_date);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      toInsert.push({ full_name: r.full_name, birth_date: r.birth_date, is_active: true });
+    }
+    let imported = 0;
+    if (toInsert.length) {
+      const { data, error } = await supa.from("birthdays").insert(toInsert).select("id");
+      if (error) throw error;
+      imported = data?.length ?? 0;
+    }
+    return { imported, skipped: clean.length - imported, total: rawRows.length };
+  }
   throw new Error(`unknown op: ${op}`);
+}
+
+async function handleRecipients(op: string, payload: Record<string, unknown>) {
+  if (op === "list") {
+    const { data, error } = await supa.from("recipients").select("id, email, name, is_active").order("email");
+    if (error) throw error;
+    return data ?? [];
+  }
+  if (op === "add") {
+    const email = String(payload.email ?? "").trim().toLowerCase();
+    if (!/.+@.+\..+/.test(email)) throw new Error("A valid email is required");
+    const name = payload.name ? String(payload.name).trim() : null;
+    const { data, error } = await supa.from("recipients")
+      .upsert({ email, name, is_active: true }, { onConflict: "email" })
+      .select().single();
+    if (error) throw error;
+    return data;
+  }
+  if (op === "remove") {
+    const id = String(payload.id ?? "");
+    if (!id) throw new Error("id required");
+    const { error } = await supa.from("recipients").delete().eq("id", id);
+    if (error) throw error;
+    return { id };
+  }
+  if (op === "toggle") {
+    const id = String(payload.id ?? "");
+    if (!id) throw new Error("id required");
+    const { data, error } = await supa.from("recipients")
+      .update({ is_active: !!payload.is_active }).eq("id", id).select().single();
+    if (error) throw error;
+    return data;
+  }
+  throw new Error(`unknown recipients op: ${op}`);
 }
 
 // ── HTTP entrypoint ───────────────────────────────────────────────────────────
@@ -329,6 +396,10 @@ Deno.serve(async (req) => {
     if (body.mode === "test") return json(await runTestSend(), 200, cors);
     if (body.mode === "write") {
       const data = await handleWrite(String(body.op ?? ""), (body.payload as Record<string, unknown>) ?? {});
+      return json({ ok: true, data }, 200, cors);
+    }
+    if (body.mode === "recipients") {
+      const data = await handleRecipients(String(body.op ?? ""), (body.payload as Record<string, unknown>) ?? {});
       return json({ ok: true, data }, 200, cors);
     }
     return json({ error: "unknown mode" }, 400, cors);
