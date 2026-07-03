@@ -14,7 +14,6 @@
 // (We do our own auth: a shared bearer for cron, an HMAC'd access code for the UI.)
 // ============================================================================
 
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ── Config from Edge Function secrets ────────────────────────────────────────
@@ -29,10 +28,11 @@ const PEPPER = Deno.env.get("ACCESS_CODE_PEPPER") ?? "";
 const REQUIRE_ADMIN = (Deno.env.get("BIRTHDAY_REQUIRE_ADMIN") ?? "false").toLowerCase() === "true";
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 
-const SMTP_HOST = Deno.env.get("SMTP_HOST") ?? "smtp.office365.com";
-const SMTP_PORT = Number(Deno.env.get("SMTP_PORT") ?? "587");
-const SMTP_USER = Deno.env.get("SMTP_USER") ?? "";
-const SMTP_PASSWORD = Deno.env.get("SMTP_PASSWORD") ?? "";
+// Microsoft Graph (OAuth client-credentials) — modern, MFA-independent sending.
+const GRAPH_TENANT_ID = Deno.env.get("GRAPH_TENANT_ID") ?? "";
+const GRAPH_CLIENT_ID = Deno.env.get("GRAPH_CLIENT_ID") ?? "";
+const GRAPH_CLIENT_SECRET = Deno.env.get("GRAPH_CLIENT_SECRET") ?? "";
+const GRAPH_SENDER = Deno.env.get("GRAPH_SENDER") ?? Deno.env.get("SMTP_USER") ?? "";
 const TEAM_RECIPIENTS = (Deno.env.get("TEAM_RECIPIENTS") ?? "")
   .split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -145,18 +145,33 @@ function esc(s: string) {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 }
 
+async function graphToken(): Promise<string> {
+  const form = new URLSearchParams({
+    client_id: GRAPH_CLIENT_ID,
+    client_secret: GRAPH_CLIENT_SECRET,
+    scope: "https://graph.microsoft.com/.default",
+    grant_type: "client_credentials",
+  });
+  const res = await fetch(`https://login.microsoftonline.com/${GRAPH_TENANT_ID}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form,
+  });
+  const j = await res.json();
+  if (!res.ok) throw new Error(`Graph auth failed: ${j.error_description || j.error || res.status}`);
+  return j.access_token as string;
+}
+
 async function sendEmail(people: Row[], opts: { testMode: boolean }) {
-  if (!SMTP_USER || !SMTP_PASSWORD) throw new Error("SMTP_USER / SMTP_PASSWORD not configured");
+  if (!GRAPH_TENANT_ID || !GRAPH_CLIENT_ID || !GRAPH_CLIENT_SECRET) {
+    throw new Error("GRAPH_TENANT_ID / GRAPH_CLIENT_ID / GRAPH_CLIENT_SECRET not configured");
+  }
+  if (!GRAPH_SENDER) throw new Error("GRAPH_SENDER not configured");
   if (TEAM_RECIPIENTS.length === 0) throw new Error("TEAM_RECIPIENTS not configured");
 
   const dateFmt = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "long", timeZone: "UTC" });
   const nice = (iso: string) => dateFmt.format(new Date(iso + "T00:00:00Z"));
 
-  const textLines = people.map((p) => {
-    const dept = p.department ? ` (${p.department})` : "";
-    const notes = p.notes ? ` — gift ideas: ${p.notes}` : "";
-    return `• ${p.full_name}${dept} — ${nice(p.birth_date)}${notes}`;
-  });
   const htmlItems = people.map((p) => {
     const dept = p.department ? ` <span style="color:#7b7689">(${esc(p.department)})</span>` : "";
     const notes = p.notes ? `<div style="color:#7b7689;font-size:13px">💡 ${esc(p.notes)}</div>` : "";
@@ -166,10 +181,9 @@ async function sendEmail(people: Row[], opts: { testMode: boolean }) {
   const tag = opts.testMode ? "[TEST] " : "";
   const subject = `${tag}🎂 Upcoming birthday${people.length > 1 ? "s" : ""} in ${LEAD_DAYS} days`;
   const intro = opts.testMode
-    ? "TEST EMAIL — this is a delivery check. If you can read this, Office 365 SMTP is working."
+    ? "TEST EMAIL — this is a delivery check. If you can read this, Microsoft Graph email sending is working."
     : `Heads-up team — time to sort a card / gift. Coming up in ${LEAD_DAYS} days:`;
 
-  const content = `${intro}\n\n${textLines.join("\n")}\n\n— Arete Care Birthday Bot`;
   const html = `
     <div style="font-family:Inter,Segoe UI,system-ui,sans-serif;color:#2c2740;max-width:560px">
       <div style="background:#3a9ca3;color:#fff;padding:16px 20px;border-radius:12px 12px 0 0;font-weight:700">
@@ -182,25 +196,21 @@ async function sendEmail(people: Row[], opts: { testMode: boolean }) {
       </div>
     </div>`;
 
-  const client = new SMTPClient({
-    connection: {
-      hostname: SMTP_HOST,
-      port: SMTP_PORT,
-      tls: SMTP_PORT === 465, // 465 = implicit TLS; 587 = false → STARTTLS upgrade
-      auth: { username: SMTP_USER, password: SMTP_PASSWORD },
+  const message = {
+    subject,
+    body: { contentType: "HTML", content: html },
+    toRecipients: TEAM_RECIPIENTS.map((address) => ({ emailAddress: { address } })),
+  };
+  const token = await graphToken();
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(GRAPH_SENDER)}/sendMail`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ message, saveToSentItems: true }),
     },
-  });
-  try {
-    await client.send({
-      from: `Arete Care Birthday Bot <${SMTP_USER}>`,
-      to: TEAM_RECIPIENTS,
-      subject,
-      content,
-      html,
-    });
-  } finally {
-    await client.close();
-  }
+  );
+  if (!res.ok) throw new Error(`Graph sendMail failed (${res.status}): ${await res.text()}`);
 }
 
 // ── The three jobs ────────────────────────────────────────────────────────────

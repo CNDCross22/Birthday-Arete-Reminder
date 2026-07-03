@@ -5,19 +5,21 @@
 -- What it does: once a day, POST to the Edge Function. The function figures out
 -- whose birthday is exactly 7 days away (in LOCAL_TZ), dedups, and emails the team.
 --
--- Project: yanaxjuqqhvnrpqwlusb (reusing the existing Arete project — already filled in below).
--- BEFORE running: replace the ONE placeholder below.
---   <SERVICE_ROLE_KEY>   Dashboard → Project Settings → API → service_role key
---                        (server-side secret; used here only inside Vault)
+-- Project: yanaxjuqqhvnrpqwlusb (already filled in below).
+-- Cron auth uses a dedicated CRON_SECRET (the service_role key did NOT match the value
+-- Supabase injects into the function). Set the SAME random string in TWO places:
+--   1. Edge Function secret:  CRON_SECRET = <your-random-string>
+--   2. the Vault line below:   <CRON_SECRET> = the same string
 -- ============================================================================
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- Store the auth bearer once in Vault (do NOT paste it into the schedule body).
--- Re-runnable: delete any prior copy first.
+-- Store the cron bearer in Vault (SAME value as the CRON_SECRET Edge Function secret).
+-- If it already exists (duplicate-key error), use update_secret instead:
+--   select vault.update_secret((select id from vault.secrets where name='birthday_cron_bearer'), '<CRON_SECRET>');
 delete from vault.secrets where name = 'birthday_cron_bearer';
-select vault.create_secret('<SERVICE_ROLE_KEY>', 'birthday_cron_bearer');
+select vault.create_secret('<CRON_SECRET>', 'birthday_cron_bearer');
 
 -- (Re)create the daily job. 0 21 * * *  = 21:00 UTC.
 --   21:00 UTC ≈ 07:00 AEST / 08:00 AEDT (Australia/Melbourne morning, year-round).
