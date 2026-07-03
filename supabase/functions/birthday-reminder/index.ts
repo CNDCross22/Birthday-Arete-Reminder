@@ -162,7 +162,7 @@ async function sendGreeting(
     subject = `Happy Birthday, ${name}`;
     heading = "🎂 Happy Birthday";
     paras = [
-      `On behalf of everyone at Arete Care, I would like to wish you a very happy birthday. We hope the day is a joyful and restful one, spent in the company of the people who matter most to you.`,
+      `On behalf of everyone at Arete Care, we would like to wish you a very happy birthday. We hope the day is a joyful and restful one, spent in the company of the people who matter most to you.`,
       `Thank you for the dedication, care, and warmth you bring to our team each day. We feel truly fortunate to have you with us, and we look forward to celebrating many more milestones together.`,
     ];
     signoff = "With our very best wishes,";
