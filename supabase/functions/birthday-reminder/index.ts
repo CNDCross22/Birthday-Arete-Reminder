@@ -173,7 +173,7 @@ async function sendGreeting(
     heading = `🎉 ${years} Year${years === 1 ? "" : "s"} of Service`;
     paras = [
       `Today marks your ${ordinal(years)} anniversary with Arete Care, and we would like to take a moment to recognise this milestone and to thank you most sincerely.`,
-      `Over the past ${years} year${years === 1 ? "" : "s"}, your commitment, professionalism, and genuine care have made a meaningful difference — to our team, and to those we have the privilege of serving. We are proud to have you as part of the Arete Care family, and we look forward to the years ahead together.`,
+      `Over the past ${years} year${years === 1 ? "" : "s"}, your commitment, professionalism, and genuine care have made a meaningful difference to our team and to those we have the privilege of serving. We are proud to have you as part of the Arete Care family, and we look forward to the years ahead together.`,
     ];
     signoff = "With sincere appreciation,";
   }
