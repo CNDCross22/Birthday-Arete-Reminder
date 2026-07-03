@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X, Loader2 } from 'lucide-react'
 
-const empty = { full_name: '', birth_date: '', department: '', notes: '', person_email: '', is_active: true }
+const empty = { full_name: '', birth_date: '', department: '', is_active: true }
 
 // Add / edit a birthday. `initial` (a row) switches it into edit mode.
 export default function BirthdayForm({ initial, onClose, onSave }) {
@@ -29,8 +29,6 @@ export default function BirthdayForm({ initial, onClose, onSave }) {
         full_name: form.full_name.trim(),
         birth_date: form.birth_date,
         department: form.department.trim() || null,
-        notes: form.notes.trim() || null,
-        person_email: form.person_email.trim() || null,
         is_active: form.is_active,
       }
       if (editing) payload.id = initial.id
@@ -55,24 +53,15 @@ export default function BirthdayForm({ initial, onClose, onSave }) {
 
         <form onSubmit={submit} className="space-y-3">
           <Field label="Full name *">
-            <input value={form.full_name} onChange={set('full_name')} placeholder="Jane Dela Cruz" className={inputCls} />
+            <input value={form.full_name} onChange={set('full_name')} placeholder="e.g. Maria Santos" className={inputCls} />
           </Field>
 
-          <Field label="Birth date *" hint="If the year is unknown, use a leap year like 2000.">
+          <Field label="Birthday *" hint="Only the month & day are used for reminders. No year? Just pick any.">
             <input type="date" value={form.birth_date} onChange={set('birth_date')} className={inputCls} />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Department">
-              <input value={form.department} onChange={set('department')} placeholder="Care team" className={inputCls} />
-            </Field>
-            <Field label="Their email">
-              <input type="email" value={form.person_email} onChange={set('person_email')} placeholder="optional" className={inputCls} />
-            </Field>
-          </div>
-
-          <Field label="Gift ideas / notes">
-            <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Loves plants, coffee…" className={inputCls} />
+          <Field label="Department" hint="Optional — shown in the reminder email.">
+            <input value={form.department} onChange={set('department')} placeholder="e.g. Care team" className={inputCls} />
           </Field>
 
           <label className="flex items-center gap-2 text-sm text-ink">

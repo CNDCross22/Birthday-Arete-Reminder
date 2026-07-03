@@ -44,7 +44,6 @@ export default function BirthdayList({ rows, leadDays = 7, onEdit, onDelete }) {
                 {age != null && ` · turning ${age}`}
                 {r.department && ` · ${r.department}`}
               </p>
-              {r.notes && <p className="truncate text-xs text-slate-400">💡 {r.notes}</p>}
             </div>
 
             <span className={`hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold sm:inline ${

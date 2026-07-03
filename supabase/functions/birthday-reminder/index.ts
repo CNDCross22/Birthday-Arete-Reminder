@@ -181,33 +181,60 @@ async function sendEmail(people: Row[], opts: { testMode: boolean }) {
 
   const dateFmt = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "long", timeZone: "UTC" });
   const nice = (iso: string) => dateFmt.format(new Date(iso + "T00:00:00Z"));
+  const count = people.length;
 
-  const htmlItems = people.map((p) => {
-    const dept = p.department ? ` <span style="color:#7b7689">(${esc(p.department)})</span>` : "";
-    const notes = p.notes ? `<div style="color:#7b7689;font-size:13px">💡 ${esc(p.notes)}</div>` : "";
-    return `<li style="margin:6px 0"><strong>${esc(p.full_name)}</strong>${dept} — ${esc(nice(p.birth_date))}${notes}</li>`;
+  // Per-person card (table layout so it renders cleanly in Outlook too).
+  const cards = people.map((p) => {
+    const dept = p.department ? ` &nbsp;<span style="font-weight:400;color:#7b7689">· ${esc(p.department)}</span>` : "";
+    return `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px">
+        <tr><td style="background:#f0eaf5;border-left:4px solid #7a5c8e;border-radius:8px;padding:14px 16px">
+          <div style="font-size:17px;font-weight:700;color:#2c2740">${esc(p.full_name)}${dept}</div>
+          <div style="font-size:14px;color:#5f4671;margin-top:3px">🎂 ${esc(nice(p.birth_date))} &nbsp;·&nbsp; in ${LEAD_DAYS} days</div>
+        </td></tr>
+      </table>`;
   }).join("");
 
-  const tag = opts.testMode ? "[TEST] " : "";
-  const subject = `${tag}🎂 Upcoming birthday${people.length > 1 ? "s" : ""} in ${LEAD_DAYS} days`;
+  const subject = opts.testMode
+    ? "[TEST] 🎂 Arete Care birthday reminder"
+    : count === 1
+      ? `🎂 ${people[0].full_name}'s birthday is in ${LEAD_DAYS} days`
+      : `🎂 ${count} birthdays coming up in ${LEAD_DAYS} days`;
+
   const intro = opts.testMode
-    ? "TEST EMAIL — this is a delivery check. If you can read this, Microsoft Graph email sending is working."
-    : `Heads-up team — time to sort a card / gift. Coming up in ${LEAD_DAYS} days:`;
+    ? "This is a test of the Arete Care birthday reminders — if you can see this, everything's working. 🎉"
+    : count === 1
+      ? `A birthday is coming up in ${LEAD_DAYS} days — let's make their day special. 🎉`
+      : `${count} birthdays are coming up in the next ${LEAD_DAYS} days — let's make their days special. 🎉`;
 
   const html = `
-    <div style="font-family:Inter,Segoe UI,system-ui,sans-serif;color:#2c2740;max-width:560px">
-      <div style="background:#3a9ca3;color:#fff;padding:16px 20px;border-radius:12px 12px 0 0;font-weight:700">
-        🎂 Arete Care · Birthday Reminder
-      </div>
-      <div style="border:1px solid #e4e6ee;border-top:0;border-radius:0 0 12px 12px;padding:18px 20px">
-        <p style="margin:0 0 12px">${esc(intro)}</p>
-        <ul style="margin:0;padding-left:18px">${htmlItems}</ul>
-        <p style="margin:16px 0 0;color:#7a5c8e;font-size:13px">— Arete Care Birthday Bot</p>
-      </div>
+    <div style="margin:0;padding:0;background:#f3f6f7">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f6f7;padding:24px 12px">
+        <tr><td align="center">
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;font-family:'Segoe UI',Inter,system-ui,Arial,sans-serif;color:#2c2740">
+            <tr><td style="background:#3a9ca3;padding:24px 28px;border-radius:14px 14px 0 0">
+              <div style="font-size:22px;font-weight:700;color:#ffffff">🎂 A birthday is on the way</div>
+              <div style="font-size:13px;color:#e6f4f3;margin-top:4px">Arete Care · Empowering Souls</div>
+            </td></tr>
+            <tr><td style="background:#ffffff;padding:24px 28px;border:1px solid #e4e6ee;border-top:0;border-radius:0 0 14px 14px">
+              <p style="margin:0 0 18px;font-size:15px;line-height:1.55">${esc(intro)}</p>
+              ${cards}
+              <p style="margin:18px 0 0;font-size:14px;line-height:1.55;color:#2c2740">
+                A card, a small treat, or a warm team message goes a long way — let's help them feel celebrated. 💛
+              </p>
+              <p style="margin:22px 0 0;font-size:14px;color:#2c2740">Warm wishes,<br><strong>Arete Care</strong></p>
+            </td></tr>
+            <tr><td style="padding:14px 28px;font-size:11px;color:#9a95a8;text-align:center;line-height:1.5">
+              You're receiving this because you're on the Arete Care birthday reminders list.
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
     </div>`;
 
   const message = {
     subject,
+    from: { emailAddress: { name: "Arete Care Birthdays", address: GRAPH_SENDER } },
     body: { contentType: "HTML", content: html },
     toRecipients: recipients.map((address) => ({ emailAddress: { address } })),
   };

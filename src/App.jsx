@@ -29,7 +29,7 @@ export default function App() {
     const q = query.trim().toLowerCase()
     if (!q) return rows
     return rows.filter((r) =>
-      [r.full_name, r.department, r.notes].filter(Boolean).some((v) => v.toLowerCase().includes(q)),
+      [r.full_name, r.department].filter(Boolean).some((v) => v.toLowerCase().includes(q)),
     )
   }, [rows, query])
 
