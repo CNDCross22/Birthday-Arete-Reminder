@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false   # never cancel an in-flight Pages deploy (that wedges deploy-pages)
 
 jobs:
   build:
