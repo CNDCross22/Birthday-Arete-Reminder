@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { X, Loader2 } from 'lucide-react'
 
-const empty = { full_name: '', birth_date: '', department: '', is_active: true }
+const empty = { full_name: '', person_email: '', birth_date: '', hire_date: '', department: '', is_active: true }
 
-// Add / edit a birthday. `initial` (a row) switches it into edit mode.
+// Add / edit a person. `initial` (a row) switches it into edit mode.
 export default function BirthdayForm({ initial, onClose, onSave }) {
   const [form, setForm] = useState(empty)
   const [saving, setSaving] = useState(false)
@@ -18,8 +18,12 @@ export default function BirthdayForm({ initial, onClose, onSave }) {
 
   const submit = async (e) => {
     e.preventDefault()
-    if (!form.full_name.trim() || !form.birth_date) {
-      setError('Name and birth date are required.')
+    if (!form.full_name.trim() || !form.person_email.trim()) {
+      setError('Name and email are required.')
+      return
+    }
+    if (!form.birth_date && !form.hire_date) {
+      setError('Add a birthday, a date hired, or both.')
       return
     }
     setSaving(true)
@@ -27,7 +31,9 @@ export default function BirthdayForm({ initial, onClose, onSave }) {
     try {
       const payload = {
         full_name: form.full_name.trim(),
-        birth_date: form.birth_date,
+        person_email: form.person_email.trim(),
+        birth_date: form.birth_date || null,
+        hire_date: form.hire_date || null,
         department: form.department.trim() || null,
         is_active: form.is_active,
       }
@@ -47,7 +53,7 @@ export default function BirthdayForm({ initial, onClose, onSave }) {
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-bold text-ink">{editing ? 'Edit birthday' : 'Add birthday'}</h2>
+          <h2 className="text-base font-bold text-ink">{editing ? 'Edit person' : 'Add person'}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
 
@@ -56,11 +62,20 @@ export default function BirthdayForm({ initial, onClose, onSave }) {
             <input value={form.full_name} onChange={set('full_name')} placeholder="e.g. Maria Santos" className={inputCls} />
           </Field>
 
-          <Field label="Birthday *" hint="Only the month & day are used for reminders. No year? Just pick any.">
-            <input type="date" value={form.birth_date} onChange={set('birth_date')} className={inputCls} />
+          <Field label="Email *" hint="The greeting is sent here — to this person.">
+            <input type="email" value={form.person_email} onChange={set('person_email')} placeholder="maria@aretecare.com.au" className={inputCls} />
           </Field>
 
-          <Field label="Department" hint="Optional — shown in the reminder email.">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Birthday" hint="For the 🎂 greeting.">
+              <input type="date" value={form.birth_date} onChange={set('birth_date')} className={inputCls} />
+            </Field>
+            <Field label="Date hired" hint="For the 🎉 anniversary.">
+              <input type="date" value={form.hire_date} onChange={set('hire_date')} className={inputCls} />
+            </Field>
+          </div>
+
+          <Field label="Department" hint="Optional.">
             <input value={form.department} onChange={set('department')} placeholder="e.g. Care team" className={inputCls} />
           </Field>
 
@@ -71,7 +86,7 @@ export default function BirthdayForm({ initial, onClose, onSave }) {
               onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
               className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
             />
-            Active (include in reminders)
+            Active (include in greetings)
           </label>
 
           {error && <p className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{error}</p>}
@@ -86,7 +101,7 @@ export default function BirthdayForm({ initial, onClose, onSave }) {
               className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
             >
               {saving && <Loader2 size={15} className="animate-spin" />}
-              {editing ? 'Save changes' : 'Add birthday'}
+              {editing ? 'Save changes' : 'Add person'}
             </button>
           </div>
         </form>

@@ -4,14 +4,12 @@ import { useBirthdays } from './hooks/useBirthdays'
 import { useToast } from './components/Toast'
 import { useAccess } from './auth/AccessGate'
 import { isDemo, hasFunctions, createBirthday, updateBirthday, removeBirthday, sendTestEmail, importBirthdays } from './lib/api'
-import { daysUntilNextBirthday } from './lib/dates'
+import { nextEvent } from './lib/dates'
 import BirthdayList from './components/BirthdayList'
 import BirthdayForm from './components/BirthdayForm'
 import ConfirmDialog from './components/ConfirmDialog'
 import ImportModal from './components/ImportModal'
 import RecipientsModal from './components/RecipientsModal'
-
-const LEAD_DAYS = 7
 
 export default function App() {
   const { rows, loading, error, reload } = useBirthdays()
@@ -29,12 +27,12 @@ export default function App() {
     const q = query.trim().toLowerCase()
     if (!q) return rows
     return rows.filter((r) =>
-      [r.full_name, r.department].filter(Boolean).some((v) => v.toLowerCase().includes(q)),
+      [r.full_name, r.person_email, r.department].filter(Boolean).some((v) => v.toLowerCase().includes(q)),
     )
   }, [rows, query])
 
-  const upcoming = useMemo(
-    () => rows.filter((r) => r.is_active && daysUntilNextBirthday(r.birth_date) <= LEAD_DAYS).length,
+  const todayCount = useMemo(
+    () => rows.filter((r) => { const ev = nextEvent(r); return r.is_active && ev && ev.days === 0 }).length,
     [rows],
   )
 
@@ -42,21 +40,21 @@ export default function App() {
     if (wasEditing) await updateBirthday(code, payload)
     else await createBirthday(code, payload)
     await reload()
-    toast(wasEditing ? 'Birthday updated.' : 'Birthday added.')
+    toast(wasEditing ? 'Person updated.' : 'Person added.')
   }
 
   const confirmDelete = async () => {
     await removeBirthday(code, deleting.id)
     setDeleting(null)
     await reload()
-    toast('Birthday removed.')
+    toast('Person removed.')
   }
 
   const runTest = async () => {
     setTesting(true)
     try {
       const res = await sendTestEmail(code)
-      toast(`Test email sent (${res.count} name${res.count === 1 ? '' : 's'}). Check the recipients' inbox.`)
+      toast(`Test greeting sent to ${res.to}. Check the inbox.`)
     } catch (e) {
       toast(e.message || 'Test failed.', 'error')
     } finally {
@@ -77,9 +75,9 @@ export default function App() {
       <header className="mb-5 flex items-center gap-3">
         <img src={`${import.meta.env.BASE_URL}arete-logo.png`} alt="Arete Care" className="h-10 w-10 rounded-lg object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
         <div className="flex-1">
-          <h1 className="text-xl font-extrabold leading-tight text-ink">Birthday Reminders</h1>
+          <h1 className="text-xl font-extrabold leading-tight text-ink">Birthdays &amp; Anniversaries</h1>
           <p className="text-sm text-muted">
-            The team gets an email {LEAD_DAYS} days before each birthday.
+            A warm greeting to each person on their birthday and work anniversary.
           </p>
         </div>
         {!isDemo && (
@@ -103,7 +101,7 @@ export default function App() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name, team…"
+            placeholder="Search name, email, team…"
             className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
           />
         </div>
@@ -118,9 +116,9 @@ export default function App() {
           <button
             onClick={() => setShowRecipients(true)}
             className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-ink hover:bg-slate-50"
-            title="Manage who receives the email"
+            title="BCC copies of every greeting (e.g. HR)"
           >
-            <Users size={16} /> <span className="hidden sm:inline">Recipients</span>
+            <Users size={16} /> <span className="hidden sm:inline">Copies</span>
           </button>
         )}
         {!isDemo && hasFunctions && (
@@ -128,7 +126,7 @@ export default function App() {
             onClick={runTest}
             disabled={testing}
             className="flex items-center gap-2 rounded-lg border border-accent-200 bg-white px-3 py-2.5 text-sm font-semibold text-accent-700 hover:bg-accent-50 disabled:opacity-60"
-            title="Send a test email now"
+            title="Preview a greeting"
           >
             {testing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
             <span className="hidden sm:inline">Test</span>
@@ -146,9 +144,9 @@ export default function App() {
       {!loading && !error && (
         <p className="mb-3 text-sm text-muted">
           {rows.length} {rows.length === 1 ? 'person' : 'people'}
-          {upcoming > 0 && (
-            <span className="ml-1 rounded-full bg-brand-50 px-2 py-0.5 font-semibold text-brand-700">
-              {upcoming} within {LEAD_DAYS} days
+          {todayCount > 0 && (
+            <span className="ml-1 rounded-full bg-accent-50 px-2 py-0.5 font-semibold text-accent-700">
+              🎉 {todayCount} celebrating today
             </span>
           )}
         </p>
@@ -159,10 +157,10 @@ export default function App() {
         <div className="grid place-items-center py-16"><Loader2 className="animate-spin text-brand-500" size={26} /></div>
       ) : error ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-          Couldn’t load birthdays: {error}
+          Couldn’t load people: {error}
         </div>
       ) : (
-        <BirthdayList rows={filtered} leadDays={LEAD_DAYS} onEdit={setEditing} onDelete={setDeleting} />
+        <BirthdayList rows={filtered} onEdit={setEditing} onDelete={setDeleting} />
       )}
 
       {/* Modals */}
@@ -171,8 +169,8 @@ export default function App() {
       )}
       {deleting && (
         <ConfirmDialog
-          title="Remove birthday?"
-          message={`This deletes ${deleting.full_name} from the reminder list.`}
+          title="Remove person?"
+          message={`This removes ${deleting.full_name} from greetings.`}
           confirmLabel="Remove"
           onCancel={() => setDeleting(null)}
           onConfirm={confirmDelete}

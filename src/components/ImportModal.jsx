@@ -50,7 +50,7 @@ export default function ImportModal({ onClose, onImport }) {
         </div>
 
         <p className="mb-3 text-sm text-muted">
-          Upload a <strong>.csv</strong> or <strong>.xlsx</strong> with two columns — a name and a birthday.
+          Upload a <strong>.csv</strong> or <strong>.xlsx</strong> with columns: <strong>Name, Email, Birthday, Date Hired</strong> (email + at least one date needed).
           <button onClick={downloadTemplate} className="ml-1 inline-flex items-center gap-1 font-semibold text-brand-600 hover:underline">
             <Download size={13} /> get template
           </button>
@@ -71,14 +71,16 @@ export default function ImportModal({ onClose, onImport }) {
           <div className="mt-4 space-y-3">
             <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm text-ink">
               <CheckCircle2 size={16} className="text-brand-600" />
-              <span><strong>{parsed.valid.length}</strong> ready to import{parsed.invalid.length ? `, ${parsed.invalid.length} skipped (unreadable date)` : ''}</span>
+              <span><strong>{parsed.valid.length}</strong> ready to import{parsed.invalid.length ? `, ${parsed.invalid.length} skipped` : ''}</span>
             </div>
             {parsed.valid.length > 0 && (
               <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 text-sm">
                 {parsed.valid.slice(0, 50).map((r, i) => (
-                  <div key={i} className="flex justify-between border-b border-slate-100 px-3 py-1.5 last:border-0">
-                    <span className="truncate text-ink">{r.full_name}</span>
-                    <span className="shrink-0 pl-2 text-muted">{formatDayMonth(r.birth_date)}</span>
+                  <div key={i} className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-1.5 last:border-0">
+                    <span className="min-w-0 truncate text-ink">{r.full_name} <span className="text-slate-400">· {r.person_email}</span></span>
+                    <span className="shrink-0 text-xs text-muted">
+                      {r.birth_date ? `🎂 ${formatDayMonth(r.birth_date)}` : ''}{r.birth_date && r.hire_date ? '  ' : ''}{r.hire_date ? `🎉 ${formatDayMonth(r.hire_date)}` : ''}
+                    </span>
                   </div>
                 ))}
                 {parsed.valid.length > 50 && <div className="px-3 py-1.5 text-xs text-muted">+ {parsed.valid.length - 50} more…</div>}
@@ -88,7 +90,7 @@ export default function ImportModal({ onClose, onImport }) {
               <details className="text-xs text-muted">
                 <summary className="cursor-pointer">Skipped rows ({parsed.invalid.length})</summary>
                 <div className="mt-1 max-h-24 overflow-y-auto">
-                  {parsed.invalid.slice(0, 30).map((r, i) => (<div key={i}>{r.full_name} — “{r.raw}”</div>))}
+                  {parsed.invalid.slice(0, 30).map((r, i) => (<div key={i}>{r.full_name} — {r.reason}</div>))}
                 </div>
               </details>
             )}

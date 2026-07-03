@@ -60,10 +60,10 @@ export default function RecipientsModal({ accessCode, onClose }) {
     <div className="fixed inset-0 z-40 grid place-items-center bg-ink/40 p-4 animate-fade-in" onMouseDown={onClose}>
       <div className="w-full max-w-md animate-scale-in rounded-2xl bg-white p-6 shadow-card" onMouseDown={(e) => e.stopPropagation()}>
         <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-base font-bold text-ink">Reminder recipients</h2>
+          <h2 className="text-base font-bold text-ink">Greeting copies (BCC)</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
-        <p className="mb-4 text-sm text-muted">Who gets the heads-up email — {activeCount} active.</p>
+        <p className="mb-4 text-sm text-muted">These people are BCC'd on every greeting (e.g. HR) — {activeCount} active.</p>
 
         <form onSubmit={add} className="mb-4 flex gap-2">
           <input
@@ -115,7 +115,7 @@ export default function RecipientsModal({ accessCode, onClose }) {
         )}
 
         <p className="mt-4 text-xs text-slate-400">
-          Only <strong>ticked</strong> recipients get reminders. If this list is empty, it falls back to the <code>TEAM_RECIPIENTS</code> setting.
+          Greetings always go <strong>to each person</strong>. Ticked people here are <strong>BCC'd</strong> a copy of every greeting — leave empty for none.
         </p>
       </div>
     </div>
