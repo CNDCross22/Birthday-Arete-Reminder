@@ -23,6 +23,12 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      # Programmatically enable + configure Pages for the "GitHub Actions" source,
+      # so the deploy step doesn't depend on the Settings→Pages toggle being exact.
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - run: npm ci
       - name: Build
         # Public config only (publishable anon key + function URL). Set these in
