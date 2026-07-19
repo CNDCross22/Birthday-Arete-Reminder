@@ -281,20 +281,26 @@ function sanitize(p: Record<string, unknown>) {
   return out;
 }
 
+// One person = one email address. Turn the unique-violation into plain English.
+function friendlyDbError(error: { code?: string; message: string }): Error {
+  if (error.code === "23505") return new Error("Someone with that email address is already on the list.");
+  return new Error(error.message);
+}
+
 async function handleWrite(op: string, payload: Record<string, unknown>) {
   if (op === "create") {
     const row = sanitize(payload);
     if (!row.full_name) throw new Error("full_name is required");
     if (!row.birth_date && !row.hire_date) throw new Error("a birthday or a hire date is required");
     const { data, error } = await supa.from("birthdays").insert(row).select().single();
-    if (error) throw error;
+    if (error) throw friendlyDbError(error);
     return data;
   }
   if (op === "update") {
     const { id, ...rest } = payload as { id?: string };
     if (!id) throw new Error("id required");
     const { data, error } = await supa.from("birthdays").update(sanitize(rest)).eq("id", id).select().single();
-    if (error) throw error;
+    if (error) throw friendlyDbError(error);
     return data;
   }
   if (op === "remove") {
@@ -323,7 +329,7 @@ async function handleWrite(op: string, payload: Record<string, unknown>) {
     let imported = 0;
     if (toInsert.length) {
       const { data, error } = await supa.from("birthdays").insert(toInsert).select("id");
-      if (error) throw error;
+      if (error) throw friendlyDbError(error);
       imported = data?.length ?? 0;
     }
     return { imported, skipped: clean.length - imported, total: rawRows.length };
