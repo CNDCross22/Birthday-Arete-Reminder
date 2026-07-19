@@ -113,7 +113,10 @@ const PERSON_COLS = "id, full_name, person_email, birth_date, hire_date, departm
 async function peopleOn(field: "birth" | "hire", month: number, day: number, year: number): Promise<Person[]> {
   const mCol = field === "birth" ? "birth_month" : "hire_month";
   const dCol = field === "birth" ? "birth_day" : "hire_day";
-  const { data } = await supa.from("birthdays").select(PERSON_COLS).eq("is_active", true).eq(mCol, month).eq(dCol, day);
+  const { data, error } = await supa.from("birthdays").select(PERSON_COLS).eq("is_active", true).eq(mCol, month).eq(dCol, day);
+  // Surface DB errors instead of silently reporting "nobody due" (e.g. a missing
+  // column because a migration hasn't been run).
+  if (error) throw new Error(`${field} lookup failed: ${error.message}. Have you run 04_greetings.sql?`);
   let people: Person[] = data ?? [];
   // Feb-29 people are observed on the configured day in a non-leap year.
   const observeFeb29 =
@@ -121,6 +124,7 @@ async function peopleOn(field: "birth" | "hire", month: number, day: number, yea
     (OBSERVE_FEB29_ON === "03-01" && month === 3 && day === 1 && !isLeap(year));
   if (observeFeb29) {
     const r = await supa.from("birthdays").select(PERSON_COLS).eq("is_active", true).eq(mCol, 2).eq(dCol, 29);
+    if (r.error) throw new Error(`${field} Feb-29 lookup failed: ${r.error.message}`);
     if (r.data) people = [...people, ...r.data];
   }
   return people;
