@@ -67,6 +67,7 @@ export default function SettingsModal({ accessCode, onClose }) {
   }
 
   const unchanged = cfg && time === asInput(cfg)
+  const city = cfg?.tz_city || 'Melbourne'
 
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-ink/40 p-4 animate-fade-in" onMouseDown={onClose}>
@@ -84,31 +85,36 @@ export default function SettingsModal({ accessCode, onClose }) {
             <div className="rounded-xl border border-slate-200 p-4">
               <div className="mb-2 flex items-center gap-2">
                 <Clock size={16} className="text-brand-600" />
-                <h3 className="text-sm font-semibold text-ink">Daily send time</h3>
+                <h3 className="text-sm font-semibold text-ink">
+                  Daily send time <span className="font-normal text-muted">({city} time)</span>
+                </h3>
               </div>
               <p className="mb-3 text-xs text-muted">
-                Set any time you like — greetings go out at this {cfg?.timezone || 'local'} time, and it stays
-                correct through daylight saving.
+                Enter the time as it reads on a <strong>{city}</strong> clock — set 7:00 AM and greetings go out
+                at 7:00 AM in {city}, all year (daylight saving is handled for you).
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="time"
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
-                  className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                  className="w-32 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                 />
+                <span className="shrink-0 rounded-md bg-brand-50 px-2 py-1.5 text-xs font-semibold text-brand-700">
+                  {city}{cfg?.tz_label ? ` · ${cfg.tz_label}` : ''}
+                </span>
                 <button
                   onClick={save}
                   disabled={saving || unchanged}
-                  className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+                  className="ml-auto flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
                 >
                   {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save
                 </button>
               </div>
               {cfg && (
                 <p className="mt-2 text-xs text-slate-400">
-                  Currently <strong>{timeLabel(cfg.send_hour, cfg.send_minute ?? 0)}</strong>
-                  {cfg.local_time && <> · local time there is now {cfg.local_time}</>}
+                  Sending at <strong>{timeLabel(cfg.send_hour, cfg.send_minute ?? 0)} {city} time</strong>
+                  {cfg.local_time && <> · it's {cfg.local_time} in {city} right now</>}
                 </p>
               )}
             </div>

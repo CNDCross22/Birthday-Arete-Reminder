@@ -401,9 +401,13 @@ async function handleRecipients(op: string, payload: Record<string, unknown>) {
 async function handleSettings(op: string, payload: Record<string, unknown>) {
   const now = localNow(LOCAL_TZ);
   const local_time = `${pad(now.h)}:${pad(now.min)}`;
+  // e.g. "Melbourne" + "AEST"/"AEDT", so the UI can state the timezone plainly.
+  const tz_city = (LOCAL_TZ.split("/").pop() ?? LOCAL_TZ).replace(/_/g, " ");
+  const tz_label = new Intl.DateTimeFormat("en-AU", { timeZone: LOCAL_TZ, timeZoneName: "short" })
+    .formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value ?? "";
   if (op === "get") {
     const s = await getSendTime();
-    return { send_hour: s.hour, send_minute: s.minute, timezone: LOCAL_TZ, local_time };
+    return { send_hour: s.hour, send_minute: s.minute, timezone: LOCAL_TZ, tz_city, tz_label, local_time };
   }
   if (op === "set") {
     const h = Number(payload.send_hour);
@@ -414,7 +418,7 @@ async function handleSettings(op: string, payload: Record<string, unknown>) {
       .upsert({ id: 1, send_hour: h, send_minute: mi, updated_at: new Date().toISOString() }, { onConflict: "id" })
       .select("send_hour, send_minute").single();
     if (error) throw new Error(`${error.message}. Have you run 07_settings.sql and 08_send_minute.sql?`);
-    return { send_hour: data.send_hour, send_minute: data.send_minute, timezone: LOCAL_TZ, local_time };
+    return { send_hour: data.send_hour, send_minute: data.send_minute, timezone: LOCAL_TZ, tz_city, tz_label, local_time };
   }
   throw new Error(`unknown settings op: ${op}`);
 }
