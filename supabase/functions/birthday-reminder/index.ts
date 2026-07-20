@@ -92,16 +92,20 @@ const json = (obj: unknown, status = 200, headers: Record<string, string> = {}) 
 
 function localNow(tz: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23",
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   }).formatToParts(new Date());
   const g = (t: string) => Number(parts.find((p) => p.type === t)!.value);
-  return { y: g("year"), m: g("month"), d: g("day"), h: g("hour") };
+  return { y: g("year"), m: g("month"), d: g("day"), h: g("hour"), min: g("minute") };
 }
 
-// The hour (local) at which greetings go out — editable from the app's Settings.
-async function getSendHour(): Promise<number> {
-  const { data } = await supa.from("app_settings").select("send_hour").eq("id", 1).maybeSingle();
-  return typeof data?.send_hour === "number" ? data.send_hour : 7;
+// The local time greetings go out — editable from the app's Settings panel.
+async function getSendTime(): Promise<{ hour: number; minute: number }> {
+  const { data } = await supa.from("app_settings").select("send_hour, send_minute").eq("id", 1).maybeSingle();
+  return {
+    hour: typeof data?.send_hour === "number" ? data.send_hour : 7,
+    minute: typeof data?.send_minute === "number" ? data.send_minute : 0,
+  };
 }
 
 // Optional copies (BCC), e.g. HR. Falls back to the TEAM_RECIPIENTS secret.
@@ -246,14 +250,18 @@ async function runGreetings(opts: { force?: boolean } = {}) {
   const t = localNow(LOCAL_TZ);
   const month = t.m, day = t.d, year = t.y;
 
-  // Cron checks in every hour; we only send at the configured local hour.
-  // This keeps the send time correct through daylight saving. "Run now" from
-  // the app passes force:true to bypass the check.
-  const sendHour = await getSendHour();
-  if (!opts.force && t.h !== sendHour) {
+  // Cron checks in every 5 minutes; we send once the local time has reached the
+  // configured time (the per-person/per-year dedup stops it repeating). Working
+  // in local time keeps it correct through daylight saving. "Run now" from the
+  // app passes force:true to bypass this.
+  const send = await getSendTime();
+  const nowMins = t.h * 60 + t.min;
+  const sendMins = send.hour * 60 + send.minute;
+  if (!opts.force && nowMins < sendMins) {
     return {
-      sent: false, reason: "not the scheduled hour",
-      localHour: t.h, sendHour, timezone: LOCAL_TZ, date: `${pad(month)}-${pad(day)}`,
+      sent: false, reason: "before the scheduled time",
+      localTime: `${pad(t.h)}:${pad(t.min)}`, sendTime: `${pad(send.hour)}:${pad(send.minute)}`,
+      timezone: LOCAL_TZ, date: `${pad(month)}-${pad(day)}`,
     };
   }
 
@@ -392,17 +400,21 @@ async function handleRecipients(op: string, payload: Record<string, unknown>) {
 // ── Settings (send time) + testing helpers ───────────────────────────────────
 async function handleSettings(op: string, payload: Record<string, unknown>) {
   const now = localNow(LOCAL_TZ);
+  const local_time = `${pad(now.h)}:${pad(now.min)}`;
   if (op === "get") {
-    return { send_hour: await getSendHour(), timezone: LOCAL_TZ, local_hour: now.h };
+    const s = await getSendTime();
+    return { send_hour: s.hour, send_minute: s.minute, timezone: LOCAL_TZ, local_time };
   }
   if (op === "set") {
     const h = Number(payload.send_hour);
-    if (!Number.isInteger(h) || h < 0 || h > 23) throw new Error("send_hour must be a whole number 0–23");
+    const mi = Number(payload.send_minute ?? 0);
+    if (!Number.isInteger(h) || h < 0 || h > 23) throw new Error("Hour must be between 0 and 23");
+    if (!Number.isInteger(mi) || mi < 0 || mi > 59) throw new Error("Minute must be between 0 and 59");
     const { data, error } = await supa.from("app_settings")
-      .upsert({ id: 1, send_hour: h, updated_at: new Date().toISOString() }, { onConflict: "id" })
-      .select("send_hour").single();
-    if (error) throw new Error(`${error.message}. Have you run 07_settings.sql?`);
-    return { send_hour: data.send_hour, timezone: LOCAL_TZ, local_hour: now.h };
+      .upsert({ id: 1, send_hour: h, send_minute: mi, updated_at: new Date().toISOString() }, { onConflict: "id" })
+      .select("send_hour, send_minute").single();
+    if (error) throw new Error(`${error.message}. Have you run 07_settings.sql and 08_send_minute.sql?`);
+    return { send_hour: data.send_hour, send_minute: data.send_minute, timezone: LOCAL_TZ, local_time };
   }
   throw new Error(`unknown settings op: ${op}`);
 }

@@ -130,8 +130,8 @@ export async function getSettings(accessCode) {
   const { data } = await callFn({ mode: 'settings', op: 'get', accessCode })
   return data
 }
-export async function setSendHour(accessCode, send_hour) {
-  const { data } = await callFn({ mode: 'settings', op: 'set', accessCode, payload: { send_hour } })
+export async function setSendTime(accessCode, send_hour, send_minute) {
+  const { data } = await callFn({ mode: 'settings', op: 'set', accessCode, payload: { send_hour, send_minute } })
   return data
 }
 // Send today's greetings immediately, ignoring the scheduled hour.

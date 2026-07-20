@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react'
 import { X, Loader2, Clock, Play, RotateCcw, Save } from 'lucide-react'
-import { getSettings, setSendHour, runGreetingsNow, resetGreetingLog } from '../lib/api'
+import { getSettings, setSendTime, runGreetingsNow, resetGreetingLog } from '../lib/api'
 import { useToast } from './Toast'
 
-const hourLabel = (h) => {
+const pad = (n) => String(n).padStart(2, '0')
+const timeLabel = (h, m = 0) => {
   const ampm = h < 12 ? 'AM' : 'PM'
   const hr = h % 12 === 0 ? 12 : h % 12
-  return `${hr}:00 ${ampm}`
+  return `${hr}:${pad(m)} ${ampm}`
 }
+const asInput = (cfg) => `${pad(cfg?.send_hour ?? 7)}:${pad(cfg?.send_minute ?? 0)}`
 
 // Send-time configuration + testing tools, so nobody has to touch SQL.
 export default function SettingsModal({ accessCode, onClose }) {
   const [cfg, setCfg] = useState(null)
-  const [hour, setHour] = useState(7)
+  const [time, setTime] = useState('07:00')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
@@ -23,17 +25,21 @@ export default function SettingsModal({ accessCode, onClose }) {
 
   useEffect(() => {
     getSettings(accessCode)
-      .then((d) => { setCfg(d); setHour(d.send_hour) })
+      .then((d) => { setCfg(d); setTime(asInput(d)) })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
+    const [hStr, mStr] = String(time).split(':')
+    const h = Number(hStr), mi = Number(mStr)
+    if (!Number.isInteger(h) || !Number.isInteger(mi)) { setError('Please pick a valid time.'); return }
     setSaving(true); setError(''); setResult('')
     try {
-      const d = await setSendHour(accessCode, Number(hour))
+      const d = await setSendTime(accessCode, h, mi)
       setCfg(d)
-      toast(`Greetings will now send at ${hourLabel(d.send_hour)}.`)
+      setTime(asInput(d))
+      toast(`Greetings will now send at ${timeLabel(d.send_hour, d.send_minute)}.`)
     } catch (e) { setError(e.message) } finally { setSaving(false) }
   }
 
@@ -55,10 +61,12 @@ export default function SettingsModal({ accessCode, onClose }) {
     setResetting(true); setError(''); setResult('')
     try {
       await resetGreetingLog(accessCode)
-      setResult('History cleared — today\'s greetings can be sent again.')
+      setResult("History cleared — today's greetings can be sent again.")
       toast('Greeting history cleared.')
     } catch (e) { setError(e.message) } finally { setResetting(false) }
   }
+
+  const unchanged = cfg && time === asInput(cfg)
 
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-ink/40 p-4 animate-fade-in" onMouseDown={onClose}>
@@ -79,21 +87,19 @@ export default function SettingsModal({ accessCode, onClose }) {
                 <h3 className="text-sm font-semibold text-ink">Daily send time</h3>
               </div>
               <p className="mb-3 text-xs text-muted">
-                Greetings go out at this time, {cfg?.timezone || 'local'} time. It stays correct through daylight saving.
+                Set any time you like — greetings go out at this {cfg?.timezone || 'local'} time, and it stays
+                correct through daylight saving.
               </p>
               <div className="flex items-center gap-2">
-                <select
-                  value={hour}
-                  onChange={(e) => setHour(Number(e.target.value))}
+                <input
+                  type="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
                   className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                >
-                  {Array.from({ length: 24 }, (_, h) => (
-                    <option key={h} value={h}>{hourLabel(h)}</option>
-                  ))}
-                </select>
+                />
                 <button
                   onClick={save}
-                  disabled={saving || hour === cfg?.send_hour}
+                  disabled={saving || unchanged}
                   className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
                 >
                   {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save
@@ -101,7 +107,8 @@ export default function SettingsModal({ accessCode, onClose }) {
               </div>
               {cfg && (
                 <p className="mt-2 text-xs text-slate-400">
-                  Currently <strong>{hourLabel(cfg.send_hour)}</strong> · it's {hourLabel(cfg.local_hour)} there now
+                  Currently <strong>{timeLabel(cfg.send_hour, cfg.send_minute ?? 0)}</strong>
+                  {cfg.local_time && <> · local time there is now {cfg.local_time}</>}
                 </p>
               )}
             </div>
@@ -109,9 +116,7 @@ export default function SettingsModal({ accessCode, onClose }) {
             {/* Testing */}
             <div className="mt-4 rounded-xl border border-accent-200 bg-accent-50/40 p-4">
               <h3 className="mb-1 text-sm font-semibold text-ink">Testing</h3>
-              <p className="mb-3 text-xs text-muted">
-                Send right now without waiting for the scheduled time.
-              </p>
+              <p className="mb-3 text-xs text-muted">Send right now, without waiting for the scheduled time.</p>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={runNow}
@@ -130,16 +135,12 @@ export default function SettingsModal({ accessCode, onClose }) {
               </div>
               <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
                 <strong>Run now</strong> greets anyone whose birthday or work anniversary is today.
-                Each person is only greeted once per year — use <strong>Reset history</strong> to allow a repeat while testing.
+                Each person is greeted only once per year — use <strong>Reset history</strong> to allow a repeat while testing.
               </p>
             </div>
 
-            {result && (
-              <p className="mt-3 rounded-lg border border-brand-200 bg-brand-50 p-2.5 text-xs text-ink">{result}</p>
-            )}
-            {error && (
-              <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-700">{error}</p>
-            )}
+            {result && <p className="mt-3 rounded-lg border border-brand-200 bg-brand-50 p-2.5 text-xs text-ink">{result}</p>}
+            {error && <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-700">{error}</p>}
           </>
         )}
       </div>
