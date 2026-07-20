@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Search, Send, LogOut, Loader2, WifiOff, Upload, Users } from 'lucide-react'
+import { Plus, Search, Send, LogOut, Loader2, WifiOff, Upload, Users, CalendarDays, List } from 'lucide-react'
 import { useBirthdays } from './hooks/useBirthdays'
 import { useToast } from './components/Toast'
 import { useAccess } from './auth/AccessGate'
@@ -10,6 +10,7 @@ import BirthdayForm from './components/BirthdayForm'
 import ConfirmDialog from './components/ConfirmDialog'
 import ImportModal from './components/ImportModal'
 import RecipientsModal from './components/RecipientsModal'
+import CalendarView from './components/CalendarView'
 
 export default function App() {
   const { rows, loading, error, reload } = useBirthdays()
@@ -22,6 +23,7 @@ export default function App() {
   const [testing, setTesting] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showRecipients, setShowRecipients] = useState(false)
+  const [view, setView] = useState('list')
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -105,6 +107,22 @@ export default function App() {
             className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
           />
         </div>
+        <div className="flex overflow-hidden rounded-lg border border-slate-300 bg-white">
+          <button
+            onClick={() => setView('list')}
+            className={`px-3 py-2.5 ${view === 'list' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+            title="List view"
+          >
+            <List size={16} />
+          </button>
+          <button
+            onClick={() => setView('calendar')}
+            className={`px-3 py-2.5 ${view === 'calendar' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+            title="Calendar view"
+          >
+            <CalendarDays size={16} />
+          </button>
+        </div>
         <button
           onClick={() => setShowImport(true)}
           className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-ink hover:bg-slate-50"
@@ -159,6 +177,8 @@ export default function App() {
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
           Couldn’t load people: {error}
         </div>
+      ) : view === 'calendar' ? (
+        <CalendarView rows={filtered} />
       ) : (
         <BirthdayList rows={filtered} onEdit={setEditing} onDelete={setDeleting} />
       )}
