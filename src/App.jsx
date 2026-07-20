@@ -72,7 +72,7 @@ export default function App() {
   }
 
   return (
-    <div className="mx-auto min-h-full max-w-2xl px-4 pb-24 pt-6">
+    <div className={`mx-auto min-h-full px-4 pb-24 pt-6 ${view === 'calendar' ? 'max-w-4xl' : 'max-w-2xl'}`}>
       {/* Header */}
       <header className="mb-5 flex items-center gap-3">
         <img src={`${import.meta.env.BASE_URL}arete-logo.png`} alt="Arete Care" className="h-10 w-10 rounded-lg object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />

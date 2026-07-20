@@ -3,36 +3,34 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { parseISO, yearsSince } from '../lib/dates'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const WEEKDAYS_MIN = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December']
 
-// Month grid of celebrations. Days with a birthday/anniversary are highlighted;
-// click one to see who. Only month + day matter, so this repeats every year.
+// Outlook-style month view: names appear on the day cells (desktop) and in an
+// agenda underneath (always). Only month + day matter, so it repeats yearly.
 export default function CalendarView({ rows }) {
   const today = new Date()
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() + 1 })
-  const [selected, setSelected] = useState(null)
 
-  const { cells, byDay, monthTotal } = useMemo(() => {
+  const { cells, byDay, agenda } = useMemo(() => {
     const { y, m } = cursor
     const daysInMonth = new Date(y, m, 0).getDate()
     const firstWeekday = (new Date(y, m - 1, 1).getDay() + 6) % 7 // Monday = 0
 
     const byDay = {}
-    const push = (day, kind, person) => {
-      if (!byDay[day]) byDay[day] = { birthdays: [], anniversaries: [] }
-      byDay[day][kind].push(person)
-    }
+    const add = (day, ev) => { (byDay[day] = byDay[day] || []).push(ev) }
     for (const r of rows) {
       if (!r.is_active) continue
       if (r.birth_date) {
         const d = parseISO(r.birth_date)
-        if (d.m === m) push(d.d, 'birthdays', r)
+        if (d.m === m) add(d.d, { kind: 'birthday', person: r })
       }
       if (r.hire_date) {
         const d = parseISO(r.hire_date)
         const yrs = yearsSince(r.hire_date)
-        if (d.m === m && (yrs == null || yrs >= 1)) push(d.d, 'anniversaries', r)
+        if (d.m === m && (yrs == null || yrs >= 1)) add(d.d, { kind: 'anniversary', person: r, years: yrs })
       }
     }
 
@@ -41,103 +39,132 @@ export default function CalendarView({ rows }) {
     for (let d = 1; d <= daysInMonth; d++) cells.push(d)
     while (cells.length % 7 !== 0) cells.push(null)
 
-    const monthTotal = Object.values(byDay).reduce((n, v) => n + v.birthdays.length + v.anniversaries.length, 0)
-    return { cells, byDay, monthTotal }
+    const agenda = Object.keys(byDay).map(Number).sort((a, b) => a - b)
+      .flatMap((day) => byDay[day].map((ev) => ({ day, ...ev })))
+
+    return { cells, byDay, agenda }
   }, [rows, cursor])
 
   const isToday = (d) =>
     d && cursor.y === today.getFullYear() && cursor.m === today.getMonth() + 1 && d === today.getDate()
 
-  const move = (delta) => {
-    setSelected(null)
-    setCursor(({ y, m }) => {
-      const nm = m + delta
-      if (nm < 1) return { y: y - 1, m: 12 }
-      if (nm > 12) return { y: y + 1, m: 1 }
-      return { y, m: nm }
-    })
-  }
+  const move = (delta) => setCursor(({ y, m }) => {
+    const nm = m + delta
+    if (nm < 1) return { y: y - 1, m: 12 }
+    if (nm > 12) return { y: y + 1, m: 1 }
+    return { y, m: nm }
+  })
 
-  const sel = selected != null ? byDay[selected] : null
+  const weekdayOf = (day) => DOW[new Date(cursor.y, cursor.m - 1, day).getDay()]
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-soft">
-      <div className="mb-3 flex items-center justify-between">
-        <button onClick={() => move(-1)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-ink" title="Previous month">
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-soft sm:p-4">
+      {/* Month nav */}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <button onClick={() => move(-1)} className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-ink" title="Previous month">
           <ChevronLeft size={18} />
         </button>
-        <div className="text-center">
-          <div className="font-bold text-ink">{MONTHS[cursor.m - 1]} {cursor.y}</div>
+        <div className="min-w-0 text-center">
+          <div className="truncate font-bold text-ink">{MONTHS[cursor.m - 1]} {cursor.y}</div>
           <div className="text-xs text-muted">
-            {monthTotal} celebration{monthTotal === 1 ? '' : 's'} this month
+            {agenda.length} celebration{agenda.length === 1 ? '' : 's'}
           </div>
         </div>
-        <button onClick={() => move(1)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-ink" title="Next month">
+        <button onClick={() => move(1)} className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-ink" title="Next month">
           <ChevronRight size={18} />
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 pb-1">
-        {WEEKDAYS.map((w) => (
-          <div key={w} className="py-1 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-400">{w}</div>
+      {/* Weekday header — abbreviated on phones */}
+      <div className="grid grid-cols-7 gap-0.5 pb-1 sm:gap-1">
+        {WEEKDAYS.map((w, i) => (
+          <div key={w + i} className="py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:text-[11px]">
+            <span className="sm:hidden">{WEEKDAYS_MIN[i]}</span>
+            <span className="hidden sm:inline">{w}</span>
+          </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
+      {/* Month grid */}
+      <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
         {cells.map((d, i) => {
-          if (!d) return <div key={i} />
-          const ev = byDay[d]
-          const has = Boolean(ev)
-          const active = selected === d
+          if (!d) return <div key={i} className="min-h-[46px] sm:min-h-[92px]" />
+          const evs = byDay[d] || []
+          const has = evs.length > 0
           return (
-            <button
+            <div
               key={i}
-              onClick={() => setSelected(active ? null : d)}
-              disabled={!has}
-              className={`relative aspect-square rounded-lg border p-1 text-left transition ${
-                active ? 'border-brand-500 bg-brand-100'
-                  : has ? 'cursor-pointer border-brand-200 bg-brand-50 hover:border-brand-400'
-                    : 'border-transparent'
+              className={`min-h-[46px] overflow-hidden rounded-lg border p-1 sm:min-h-[92px] ${
+                has ? 'border-brand-200 bg-brand-50/60' : 'border-slate-100'
               } ${isToday(d) ? 'ring-2 ring-accent-400' : ''}`}
             >
-              <span className={`text-xs font-semibold ${
-                isToday(d) ? 'text-accent-700' : has ? 'text-brand-700' : 'text-slate-500'
-              }`}>{d}</span>
+              <div className="flex items-start justify-between gap-1">
+                <span className={`text-[11px] font-semibold sm:text-xs ${
+                  isToday(d) ? 'text-accent-700' : has ? 'text-brand-700' : 'text-slate-400'
+                }`}>{d}</span>
+                {/* phones: compact markers only (names live in the agenda below) */}
+                {has && (
+                  <span className="text-[9px] leading-none sm:hidden">
+                    {evs.some((e) => e.kind === 'birthday') && '🎂'}
+                    {evs.some((e) => e.kind === 'anniversary') && '🎉'}
+                  </span>
+                )}
+              </div>
+
+              {/* desktop: Outlook-style name chips */}
               {has && (
-                <span className="absolute inset-x-0 bottom-1 flex items-center justify-center gap-0.5 text-[10px] leading-none">
-                  {ev.birthdays.length > 0 && <span>🎂</span>}
-                  {ev.anniversaries.length > 0 && <span>🎉</span>}
-                </span>
+                <div className="mt-1 hidden flex-col gap-0.5 sm:flex">
+                  {evs.slice(0, 2).map((ev, k) => (
+                    <span
+                      key={k}
+                      title={`${ev.person.full_name} — ${ev.kind === 'birthday' ? 'birthday' : `${ev.years} years`}`}
+                      className={`flex items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] leading-tight ${
+                        ev.kind === 'birthday' ? 'bg-accent-100 text-accent-800' : 'bg-brand-100 text-brand-800'
+                      }`}
+                    >
+                      <span className="shrink-0">{ev.kind === 'birthday' ? '🎂' : '🎉'}</span>
+                      <span className="truncate">{ev.person.full_name}</span>
+                    </span>
+                  ))}
+                  {evs.length > 2 && (
+                    <span className="px-1 text-[9px] font-medium text-muted">+{evs.length - 2} more</span>
+                  )}
+                </div>
               )}
-            </button>
+            </div>
           )
         })}
       </div>
 
-      {sel && (
-        <div className="mt-3 animate-fade-in rounded-xl border border-brand-200 bg-brand-50/60 p-3">
-          <p className="mb-2 text-sm font-semibold text-ink">{MONTHS[cursor.m - 1]} {selected}</p>
-          <ul className="space-y-1.5">
-            {sel.birthdays.map((p) => (
-              <li key={`b${p.id}`} className="flex items-center gap-2 text-sm">
-                <span>🎂</span>
-                <span className="truncate font-medium text-ink">{p.full_name}</span>
-                <span className="shrink-0 text-xs text-muted">birthday</span>
+      {/* Agenda — always visible, so names are readable on every screen size */}
+      <div className="mt-4 border-t border-slate-100 pt-3">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
+          {MONTHS[cursor.m - 1]} celebrations
+        </p>
+        {agenda.length === 0 ? (
+          <p className="py-2 text-sm text-muted">Nothing in {MONTHS[cursor.m - 1]}.</p>
+        ) : (
+          <ul className="space-y-1">
+            {agenda.map((ev, i) => (
+              <li
+                key={i}
+                className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${
+                  isToday(ev.day) ? 'bg-accent-50 ring-1 ring-accent-200' : 'hover:bg-slate-50'
+                }`}
+              >
+                <span className="w-14 shrink-0 text-xs font-semibold text-muted">
+                  {weekdayOf(ev.day)} {ev.day}
+                </span>
+                <span className="shrink-0">{ev.kind === 'birthday' ? '🎂' : '🎉'}</span>
+                <span className="min-w-0 flex-1 truncate font-medium text-ink">{ev.person.full_name}</span>
+                <span className="shrink-0 text-xs text-muted">
+                  {ev.kind === 'birthday' ? 'birthday' : `${ev.years} yr${ev.years === 1 ? '' : 's'}`}
+                </span>
               </li>
             ))}
-            {sel.anniversaries.map((p) => {
-              const yrs = yearsSince(p.hire_date)
-              return (
-                <li key={`a${p.id}`} className="flex items-center gap-2 text-sm">
-                  <span>🎉</span>
-                  <span className="truncate font-medium text-ink">{p.full_name}</span>
-                  <span className="shrink-0 text-xs text-muted">{yrs != null ? `${yrs} year${yrs === 1 ? '' : 's'}` : 'anniversary'}</span>
-                </li>
-              )
-            })}
           </ul>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-muted">
         <span>🎂 Birthday</span>
