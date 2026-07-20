@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Search, Send, LogOut, Loader2, WifiOff, Upload, Users, CalendarDays, List } from 'lucide-react'
+import { Plus, Search, Send, LogOut, Loader2, WifiOff, Upload, Users, CalendarDays, List, Settings } from 'lucide-react'
 import { useBirthdays } from './hooks/useBirthdays'
 import { useToast } from './components/Toast'
 import { useAccess } from './auth/AccessGate'
@@ -11,6 +11,7 @@ import ConfirmDialog from './components/ConfirmDialog'
 import ImportModal from './components/ImportModal'
 import RecipientsModal from './components/RecipientsModal'
 import CalendarView from './components/CalendarView'
+import SettingsModal from './components/SettingsModal'
 
 export default function App() {
   const { rows, loading, error, reload } = useBirthdays()
@@ -24,6 +25,7 @@ export default function App() {
   const [showImport, setShowImport] = useState(false)
   const [showRecipients, setShowRecipients] = useState(false)
   const [view, setView] = useState('list')
+  const [showSettings, setShowSettings] = useState(false)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -150,6 +152,15 @@ export default function App() {
             <span className="hidden sm:inline">Test</span>
           </button>
         )}
+        {!isDemo && hasFunctions && (
+          <button
+            onClick={() => setShowSettings(true)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-500 hover:bg-slate-50 hover:text-ink"
+            title="Settings — send time & testing"
+          >
+            <Settings size={16} />
+          </button>
+        )}
         <button
           onClick={() => setEditing({})}
           className="flex items-center gap-2 rounded-lg bg-brand-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
@@ -198,6 +209,7 @@ export default function App() {
       )}
       {showImport && <ImportModal onClose={() => setShowImport(false)} onImport={doImport} />}
       {showRecipients && <RecipientsModal accessCode={code} onClose={() => setShowRecipients(false)} />}
+      {showSettings && <SettingsModal accessCode={code} onClose={() => setShowSettings(false)} />}
     </div>
   )
 }

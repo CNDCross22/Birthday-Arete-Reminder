@@ -90,10 +90,18 @@ function corsHeaders(origin: string): Record<string, string> {
 const json = (obj: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json", ...headers } });
 
-function localToday(tz: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+function localNow(tz: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date());
   const g = (t: string) => Number(parts.find((p) => p.type === t)!.value);
-  return { y: g("year"), m: g("month"), d: g("day") };
+  return { y: g("year"), m: g("month"), d: g("day"), h: g("hour") };
+}
+
+// The hour (local) at which greetings go out — editable from the app's Settings.
+async function getSendHour(): Promise<number> {
+  const { data } = await supa.from("app_settings").select("send_hour").eq("id", 1).maybeSingle();
+  return typeof data?.send_hour === "number" ? data.send_hour : 7;
 }
 
 // Optional copies (BCC), e.g. HR. Falls back to the TEAM_RECIPIENTS secret.
@@ -234,9 +242,21 @@ async function unclaim(id: string, year: number, kind: string) {
 }
 
 // ── Jobs ──────────────────────────────────────────────────────────────────────
-async function runGreetings() {
-  const t = localToday(LOCAL_TZ);
+async function runGreetings(opts: { force?: boolean } = {}) {
+  const t = localNow(LOCAL_TZ);
   const month = t.m, day = t.d, year = t.y;
+
+  // Cron checks in every hour; we only send at the configured local hour.
+  // This keeps the send time correct through daylight saving. "Run now" from
+  // the app passes force:true to bypass the check.
+  const sendHour = await getSendHour();
+  if (!opts.force && t.h !== sendHour) {
+    return {
+      sent: false, reason: "not the scheduled hour",
+      localHour: t.h, sendHour, timezone: LOCAL_TZ, date: `${pad(month)}-${pad(day)}`,
+    };
+  }
+
   const observed = `${year}-${pad(month)}-${pad(day)}`;
 
   let birthdays = 0, anniversaries = 0;
@@ -265,7 +285,7 @@ async function runTestSend() {
   const copies = await copyRecipients();
   const to = copies[0] ?? GRAPH_SENDER;
   const sample: Person = { id: "sample", full_name: "Alex Rivera", person_email: to, birth_date: null, hire_date: null, department: null };
-  await sendGreeting(sample, "birthday", localToday(LOCAL_TZ).y, { toOverride: to, testMode: true });
+  await sendGreeting(sample, "birthday", localNow(LOCAL_TZ).y, { toOverride: to, testMode: true });
   return { sent: true, testMode: true, to };
 }
 
@@ -369,6 +389,32 @@ async function handleRecipients(op: string, payload: Record<string, unknown>) {
   throw new Error(`unknown recipients op: ${op}`);
 }
 
+// ── Settings (send time) + testing helpers ───────────────────────────────────
+async function handleSettings(op: string, payload: Record<string, unknown>) {
+  const now = localNow(LOCAL_TZ);
+  if (op === "get") {
+    return { send_hour: await getSendHour(), timezone: LOCAL_TZ, local_hour: now.h };
+  }
+  if (op === "set") {
+    const h = Number(payload.send_hour);
+    if (!Number.isInteger(h) || h < 0 || h > 23) throw new Error("send_hour must be a whole number 0–23");
+    const { data, error } = await supa.from("app_settings")
+      .upsert({ id: 1, send_hour: h, updated_at: new Date().toISOString() }, { onConflict: "id" })
+      .select("send_hour").single();
+    if (error) throw new Error(`${error.message}. Have you run 07_settings.sql?`);
+    return { send_hour: data.send_hour, timezone: LOCAL_TZ, local_hour: now.h };
+  }
+  throw new Error(`unknown settings op: ${op}`);
+}
+
+// Clears the "already greeted" history so a send can be repeated. Testing only —
+// in normal use this log is what stops anyone being greeted twice.
+async function handleResetLog() {
+  const { error } = await supa.from("reminder_log").delete().gte("id", 0);
+  if (error) throw error;
+  return { cleared: true };
+}
+
 // ── HTTP entrypoint ───────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   const origin = req.headers.get("Origin") ?? "";
@@ -399,6 +445,9 @@ Deno.serve(async (req) => {
 
   try {
     if (body.mode === "test") return json(await runTestSend(), 200, cors);
+    if (body.mode === "run") return json(await runGreetings({ force: true }), 200, cors);
+    if (body.mode === "resetLog") return json(await handleResetLog(), 200, cors);
+    if (body.mode === "settings") return json({ ok: true, data: await handleSettings(String(body.op ?? "get"), (body.payload as Record<string, unknown>) ?? {}) }, 200, cors);
     if (body.mode === "write") return json({ ok: true, data: await handleWrite(String(body.op ?? ""), (body.payload as Record<string, unknown>) ?? {}) }, 200, cors);
     if (body.mode === "recipients") return json({ ok: true, data: await handleRecipients(String(body.op ?? ""), (body.payload as Record<string, unknown>) ?? {}) }, 200, cors);
     return json({ error: "unknown mode" }, 400, cors);

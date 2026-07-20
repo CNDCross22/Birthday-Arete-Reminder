@@ -124,3 +124,21 @@ export async function toggleRecipient(accessCode, id, is_active) {
   const { data } = await callFn({ mode: 'recipients', op: 'toggle', accessCode, payload: { id, is_active } })
   return data
 }
+
+// Settings + testing tools (live backend only).
+export async function getSettings(accessCode) {
+  const { data } = await callFn({ mode: 'settings', op: 'get', accessCode })
+  return data
+}
+export async function setSendHour(accessCode, send_hour) {
+  const { data } = await callFn({ mode: 'settings', op: 'set', accessCode, payload: { send_hour } })
+  return data
+}
+// Send today's greetings immediately, ignoring the scheduled hour.
+export async function runGreetingsNow(accessCode) {
+  return callFn({ mode: 'run', accessCode })
+}
+// Clear the "already greeted" history so a send can be repeated (testing).
+export async function resetGreetingLog(accessCode) {
+  return callFn({ mode: 'resetLog', accessCode })
+}
