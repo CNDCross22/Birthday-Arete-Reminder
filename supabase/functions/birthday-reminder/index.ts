@@ -181,7 +181,7 @@ async function sendGreeting(
   if (kind === "birthday") {
     accent = "#7a5c8e";
     subject = `Happy Birthday, ${name}`;
-    heading = "🎂 Happy Birthday";
+    heading = "🎂 Happy Birthday 🎂";
     opening = `Happy Birthday, ${name}! 🎉`;
     openingBold = true;
     paras = [
@@ -194,7 +194,7 @@ async function sendGreeting(
   } else {
     accent = "#3a9ca3";
     subject = `Congratulations on Your Work Anniversary, ${name}`;
-    heading = "🎉 Happy Work Anniversary";
+    heading = "🎉 Happy Work Anniversary 🎉";
     opening = `Dear ${name},`;
     openingBold = false;
     paras = [
