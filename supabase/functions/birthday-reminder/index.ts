@@ -40,7 +40,7 @@ const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map((
 
 // Bump this whenever this file changes. A plain GET on the function URL returns
 // it, so you can confirm which build is actually deployed instead of guessing.
-const FN_VERSION = "2026-07-21-hr-copy";
+const FN_VERSION = "2026-07-21-hr-copy-bcc";
 
 const supa = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 const te = new TextEncoder();
@@ -240,7 +240,11 @@ async function sendGreeting(
     body: { contentType: "HTML", content: html },
     toRecipients: [{ emailAddress: { address: to } }],
   };
-  const bcc = opts.testMode ? [] : await copyRecipients();
+  // Never BCC someone their own greeting: if the copies list contains the
+  // recipient, Exchange merges the two and it looks like BCC did nothing.
+  const bcc = opts.testMode
+    ? []
+    : (await copyRecipients()).filter((a) => a.toLowerCase() !== String(to).toLowerCase());
   if (bcc.length) message.bccRecipients = bcc.map((address) => ({ emailAddress: { address } }));
 
   const token = await graphToken();
