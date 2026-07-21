@@ -38,6 +38,10 @@ const LOCAL_TZ = Deno.env.get("LOCAL_TZ") ?? "Australia/Melbourne";
 const OBSERVE_FEB29_ON = Deno.env.get("OBSERVE_FEB29_ON") ?? "02-28"; // or "03-01"
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
+// Bump this whenever this file changes. A plain GET on the function URL returns
+// it, so you can confirm which build is actually deployed instead of guessing.
+const FN_VERSION = "2026-07-21-hr-copy";
+
 const supa = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 const te = new TextEncoder();
 
@@ -449,6 +453,8 @@ Deno.serve(async (req) => {
   const origin = req.headers.get("Origin") ?? "";
   const cors = corsHeaders(origin);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  // Ungated version probe (no secrets) — confirms which build is live.
+  if (req.method === "GET") return json({ ok: true, version: FN_VERSION }, 200, cors);
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405, cors);
 
   let body: Record<string, unknown> = {};
