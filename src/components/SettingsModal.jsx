@@ -111,12 +111,6 @@ export default function SettingsModal({ accessCode, onClose }) {
                   {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save
                 </button>
               </div>
-              {cfg && (
-                <p className="mt-2 text-xs text-slate-400">
-                  Sending at <strong>{timeLabel(cfg.send_hour, cfg.send_minute ?? 0)} {city} time</strong>
-                  {cfg.local_time && <> · it's {cfg.local_time} in {city} right now</>}
-                </p>
-              )}
             </div>
 
             {/* Testing */}
