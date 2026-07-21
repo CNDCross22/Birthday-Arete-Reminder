@@ -98,9 +98,9 @@ export default function App() {
     <div className={`mx-auto min-h-full px-4 pb-24 pt-6 ${view === 'calendar' ? 'max-w-5xl' : 'max-w-6xl'}`}>
       {/* Header */}
       <header className="mb-5 flex items-center gap-3">
-        <img src={`${import.meta.env.BASE_URL}arete-logo.png`} alt="Arete Care" className="h-11 w-11 rounded-lg object-contain lg:h-12 lg:w-12" onError={(e) => (e.currentTarget.style.display = 'none')} />
+        <img src={`${import.meta.env.BASE_URL}arete-logo.png`} alt="Arete Care" className="h-10 w-10 rounded-lg object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
         <div className="flex-1">
-          <h1 className="text-xl font-extrabold leading-tight text-ink lg:text-2xl">Birthdays &amp; Anniversaries</h1>
+          <h1 className="text-xl font-extrabold leading-tight text-ink">Birthdays &amp; Anniversaries</h1>
           <p className="text-sm text-muted">
             A warm greeting to each person on their birthday and work anniversary.
           </p>
@@ -221,15 +221,15 @@ export default function App() {
               <button
                 key={t.key}
                 onClick={() => setScope(t.key)}
-                className={`rounded-2xl border px-4 py-3.5 text-left transition lg:px-5 lg:py-5 ${
+                className={`rounded-xl border px-3.5 py-3 text-left transition ${
                   on ? 'border-brand-400 bg-brand-50 ring-1 ring-brand-200'
                      : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
-                <div className={`text-2xl font-extrabold leading-none lg:text-4xl ${celebrating ? 'text-accent-600' : 'text-ink'}`}>
+                <div className={`text-xl font-extrabold leading-none ${celebrating ? 'text-accent-600' : 'text-ink'}`}>
                   {celebrating && '🎉 '}{t.n}
                 </div>
-                <div className="mt-2 text-xs font-medium text-muted lg:text-sm">{t.label}</div>
+                <div className="mt-1.5 text-xs font-medium text-muted">{t.label}</div>
               </button>
             )
           })}

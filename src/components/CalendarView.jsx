@@ -69,7 +69,7 @@ export default function CalendarView({ rows }) {
           <ChevronLeft size={18} />
         </button>
         <div className="min-w-0 text-center">
-          <div className="truncate text-lg font-bold text-ink lg:text-xl">{MONTHS[cursor.m - 1]} {cursor.y}</div>
+          <div className="truncate text-base font-bold text-ink">{MONTHS[cursor.m - 1]} {cursor.y}</div>
           <div className="text-xs text-muted">
             {agenda.length} celebration{agenda.length === 1 ? '' : 's'}
           </div>
@@ -92,13 +92,13 @@ export default function CalendarView({ rows }) {
       {/* Month grid */}
       <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
         {cells.map((d, i) => {
-          if (!d) return <div key={i} className="min-h-[46px] sm:min-h-[92px] lg:min-h-[132px]" />
+          if (!d) return <div key={i} className="min-h-[46px] sm:min-h-[92px] lg:min-h-[116px]" />
           const evs = byDay[d] || []
           const has = evs.length > 0
           return (
             <div
               key={i}
-              className={`min-h-[46px] overflow-hidden rounded-lg border p-1 sm:min-h-[92px] lg:min-h-[132px] lg:p-1.5 ${
+              className={`min-h-[46px] overflow-hidden rounded-lg border p-1 sm:min-h-[92px] lg:min-h-[116px] lg:p-1.5 ${
                 has ? 'border-brand-200 bg-brand-50/60' : 'border-slate-100'
               } ${isToday(d) ? 'ring-2 ring-accent-400' : ''}`}
             >

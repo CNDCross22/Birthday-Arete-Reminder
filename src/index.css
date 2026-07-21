@@ -17,12 +17,12 @@ body,
    lever instead of a breakpoint on every element. */
 @media (min-width: 1280px) {
   html {
-    font-size: 17px;
+    font-size: 16.5px;
   }
 }
 @media (min-width: 1600px) {
   html {
-    font-size: 18px;
+    font-size: 17px;
   }
 }
 
