@@ -40,7 +40,7 @@ const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map((
 
 // Bump this whenever this file changes. A plain GET on the function URL returns
 // it, so you can confirm which build is actually deployed instead of guessing.
-const FN_VERSION = "2026-07-21-hr-copy-bcc";
+const FN_VERSION = "2026-07-21-status";
 
 const supa = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 const te = new TextEncoder();
@@ -444,6 +444,36 @@ async function handleSettings(op: string, payload: Record<string, unknown>) {
   throw new Error(`unknown settings op: ${op}`);
 }
 
+// "Is the robot alive?" — what's due today, what's already gone out, and when.
+async function handleStatus() {
+  const t = localNow(LOCAL_TZ);
+  const send = await getSendTime();
+  const observed = `${t.y}-${pad(t.m)}-${pad(t.d)}`;
+
+  // Same rules the sender uses, so the count always matches reality.
+  const bdays = (await peopleOn("birth", t.m, t.d, t.y)).filter((p) => p.person_email);
+  const annis = (await peopleOn("hire", t.m, t.d, t.y)).filter((p) => {
+    const yrs = p.hire_date ? t.y - Number(p.hire_date.slice(0, 4)) : 0;
+    return p.person_email && yrs >= 1;
+  });
+
+  type SentRow = { sent_at: string };
+  const { data: todayRows } = await supa.from("reminder_log").select("sent_at").eq("observed_date", observed);
+  const sentTimes = ((todayRows ?? []) as SentRow[]).map((r) => r.sent_at).sort();
+  const { data: lastRows } = await supa.from("reminder_log")
+    .select("sent_at").order("sent_at", { ascending: false }).limit(1);
+  const lastOverall = ((lastRows ?? []) as SentRow[])[0]?.sent_at ?? null;
+
+  return {
+    due_today: bdays.length + annis.length,
+    sent_today: sentTimes.length,
+    last_sent_at: sentTimes.length ? sentTimes[sentTimes.length - 1] : lastOverall,
+    send_time: `${pad(send.hour)}:${pad(send.minute)}`,
+    local_time: `${pad(t.h)}:${pad(t.min)}`,
+    timezone: LOCAL_TZ,
+  };
+}
+
 // Clears the "already greeted" history so a send can be repeated. Testing only —
 // in normal use this log is what stops anyone being greeted twice.
 async function handleResetLog() {
@@ -485,6 +515,7 @@ Deno.serve(async (req) => {
   try {
     if (body.mode === "test") return json(await runTestSend(), 200, cors);
     if (body.mode === "run") return json(await runGreetings({ force: true }), 200, cors);
+    if (body.mode === "status") return json({ ok: true, data: await handleStatus() }, 200, cors);
     if (body.mode === "resetLog") return json(await handleResetLog(), 200, cors);
     if (body.mode === "settings") return json({ ok: true, data: await handleSettings(String(body.op ?? "get"), (body.payload as Record<string, unknown>) ?? {}) }, 200, cors);
     if (body.mode === "write") return json({ ok: true, data: await handleWrite(String(body.op ?? ""), (body.payload as Record<string, unknown>) ?? {}) }, 200, cors);

@@ -142,3 +142,8 @@ export async function runGreetingsNow(accessCode) {
 export async function resetGreetingLog(accessCode) {
   return callFn({ mode: 'resetLog', accessCode })
 }
+// "Is it working?" — what's due today, what's gone out, and when.
+export async function getStatus(accessCode) {
+  const { data } = await callFn({ mode: 'status', accessCode })
+  return data
+}

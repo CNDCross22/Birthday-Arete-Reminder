@@ -12,6 +12,7 @@ import ImportModal from './components/ImportModal'
 import RecipientsModal from './components/RecipientsModal'
 import CalendarView from './components/CalendarView'
 import SettingsModal from './components/SettingsModal'
+import StatusStrip from './components/StatusStrip'
 
 export default function App() {
   const { rows, loading, error, reload } = useBirthdays()
@@ -200,6 +201,10 @@ export default function App() {
           <Plus size={16} /> Add
         </button>
       </div>
+
+      {!isDemo && hasFunctions && !loading && !error && (
+        <StatusStrip accessCode={code} refreshKey={rows.length} />
+      )}
 
       {/* The stats ARE the filter — reading them and using them is one action */}
       {!loading && !error && view === 'list' && (
