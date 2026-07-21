@@ -12,6 +12,20 @@ body,
   height: 100%;
 }
 
+/* Big monitors: scale the whole UI up. Tailwind sizes in rem, so moving the
+   root size grows type, spacing and the max-width container together — one
+   lever instead of a breakpoint on every element. */
+@media (min-width: 1280px) {
+  html {
+    font-size: 17px;
+  }
+}
+@media (min-width: 1600px) {
+  html {
+    font-size: 18px;
+  }
+}
+
 body {
   @apply text-ink antialiased;
   background:

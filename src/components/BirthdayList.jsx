@@ -35,8 +35,8 @@ export default function BirthdayList({ rows, onEdit, onDelete }) {
     <div className="space-y-4">
       {groups.map((g) => (
         <section key={g.key}>
-          <h3 className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">{g.label}</h3>
-          <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">{g.label}</h3>
+          <ul className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
             {g.items.map((r) => {
               const today = r.is_active && r.ev.days === 0
               const soon = r.is_active && r.ev.days <= 7
@@ -44,11 +44,11 @@ export default function BirthdayList({ rows, onEdit, onDelete }) {
               return (
                 <li
                   key={r.id}
-                  className={`group flex items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 shadow-soft transition hover:border-brand-300 ${
+                  className={`group flex items-center gap-3 rounded-xl border bg-white px-3.5 py-3 shadow-soft transition hover:border-brand-300 ${
                     today ? 'border-accent-300 bg-accent-50/50' : soon ? 'border-brand-200' : 'border-slate-200'
                   } ${r.is_active ? '' : 'opacity-55'}`}
                 >
-                  <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-base ${
+                  <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg text-lg ${
                     today ? 'bg-accent-500' : soon ? 'bg-brand-500' : 'bg-slate-100'
                   }`}>
                     {r.ev.kind === 'birthday' ? '🎂' : '🎉'}
@@ -68,7 +68,7 @@ export default function BirthdayList({ rows, onEdit, onDelete }) {
                     </p>
                   </div>
 
-                  <span className={`shrink-0 whitespace-nowrap text-[11px] font-semibold ${
+                  <span className={`shrink-0 whitespace-nowrap text-xs font-semibold ${
                     today ? 'text-accent-700' : soon ? 'text-brand-700' : 'text-slate-400'
                   }`}>
                     {countdownLabel(r.ev.days)}

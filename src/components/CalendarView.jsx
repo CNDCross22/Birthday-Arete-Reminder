@@ -8,6 +8,10 @@ const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December']
 
+// Name chips that fit in a day cell before it becomes "+N more".
+const VIS_SM = 2  // tablet-height cells
+const VIS_LG = 4  // tall cells on a desktop monitor
+
 // Outlook-style month view: names appear on the day cells (desktop) and in an
 // agenda underneath (always). Only month + day matter, so it repeats yearly.
 export default function CalendarView({ rows }) {
@@ -58,14 +62,14 @@ export default function CalendarView({ rows }) {
   const weekdayOf = (day) => DOW[new Date(cursor.y, cursor.m - 1, day).getDay()]
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-soft sm:p-4">
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-soft sm:p-4 lg:p-5">
       {/* Month nav */}
       <div className="mb-3 flex items-center justify-between gap-2">
         <button onClick={() => move(-1)} className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-ink" title="Previous month">
           <ChevronLeft size={18} />
         </button>
         <div className="min-w-0 text-center">
-          <div className="truncate font-bold text-ink">{MONTHS[cursor.m - 1]} {cursor.y}</div>
+          <div className="truncate text-lg font-bold text-ink lg:text-xl">{MONTHS[cursor.m - 1]} {cursor.y}</div>
           <div className="text-xs text-muted">
             {agenda.length} celebration{agenda.length === 1 ? '' : 's'}
           </div>
@@ -78,7 +82,7 @@ export default function CalendarView({ rows }) {
       {/* Weekday header — abbreviated on phones */}
       <div className="grid grid-cols-7 gap-0.5 pb-1 sm:gap-1">
         {WEEKDAYS.map((w, i) => (
-          <div key={w + i} className="py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:text-[11px]">
+          <div key={w + i} className="py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:text-[11px] lg:text-xs">
             <span className="sm:hidden">{WEEKDAYS_MIN[i]}</span>
             <span className="hidden sm:inline">{w}</span>
           </div>
@@ -88,18 +92,18 @@ export default function CalendarView({ rows }) {
       {/* Month grid */}
       <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
         {cells.map((d, i) => {
-          if (!d) return <div key={i} className="min-h-[46px] sm:min-h-[92px]" />
+          if (!d) return <div key={i} className="min-h-[46px] sm:min-h-[92px] lg:min-h-[132px]" />
           const evs = byDay[d] || []
           const has = evs.length > 0
           return (
             <div
               key={i}
-              className={`min-h-[46px] overflow-hidden rounded-lg border p-1 sm:min-h-[92px] ${
+              className={`min-h-[46px] overflow-hidden rounded-lg border p-1 sm:min-h-[92px] lg:min-h-[132px] lg:p-1.5 ${
                 has ? 'border-brand-200 bg-brand-50/60' : 'border-slate-100'
               } ${isToday(d) ? 'ring-2 ring-accent-400' : ''}`}
             >
               <div className="flex items-start justify-between gap-1">
-                <span className={`text-[11px] font-semibold sm:text-xs ${
+                <span className={`text-[11px] font-semibold sm:text-xs lg:text-sm ${
                   isToday(d) ? 'text-accent-700' : has ? 'text-brand-700' : 'text-slate-400'
                 }`}>{d}</span>
                 {/* phones: compact markers only (names live in the agenda below) */}
@@ -114,20 +118,29 @@ export default function CalendarView({ rows }) {
               {/* desktop: Outlook-style name chips */}
               {has && (
                 <div className="mt-1 hidden flex-col gap-0.5 sm:flex">
-                  {evs.slice(0, 2).map((ev, k) => (
+                  {/* Taller cells on wide screens fit more names, so chips 3-4
+                      appear there and the overflow count adjusts to match. */}
+                  {evs.slice(0, VIS_LG).map((ev, k) => (
                     <span
                       key={k}
                       title={`${ev.person.full_name} — ${ev.kind === 'birthday' ? 'birthday' : `${ev.years} years`}`}
-                      className={`flex items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] leading-tight ${
-                        ev.kind === 'birthday' ? 'bg-accent-100 text-accent-800' : 'bg-brand-100 text-brand-800'
-                      }`}
+                      className={`items-center gap-1 truncate rounded px-1 py-0.5 text-[11px] leading-tight lg:text-xs ${
+                        k < VIS_SM ? 'flex' : 'hidden lg:flex'
+                      } ${ev.kind === 'birthday' ? 'bg-accent-100 text-accent-800' : 'bg-brand-100 text-brand-800'}`}
                     >
                       <span className="shrink-0">{ev.kind === 'birthday' ? '🎂' : '🎉'}</span>
                       <span className="truncate">{ev.person.full_name}</span>
                     </span>
                   ))}
-                  {evs.length > 2 && (
-                    <span className="px-1 text-[9px] font-medium text-muted">+{evs.length - 2} more</span>
+                  {evs.length > VIS_SM && (
+                    <span className="px-1 text-[10px] font-semibold text-brand-600 lg:hidden">
+                      +{evs.length - VIS_SM} more
+                    </span>
+                  )}
+                  {evs.length > VIS_LG && (
+                    <span className="hidden px-1 text-xs font-semibold text-brand-600 lg:block">
+                      +{evs.length - VIS_LG} more
+                    </span>
                   )}
                 </div>
               )}
@@ -138,7 +151,7 @@ export default function CalendarView({ rows }) {
 
       {/* Agenda — always visible, so names are readable on every screen size */}
       <div className="mt-4 border-t border-slate-100 pt-3">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
           {MONTHS[cursor.m - 1]} celebrations
         </p>
         {agenda.length === 0 ? (
@@ -166,7 +179,7 @@ export default function CalendarView({ rows }) {
         )}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-muted">
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted">
         <span>🎂 Birthday</span>
         <span>🎉 Work anniversary</span>
         <span className="inline-flex items-center gap-1">
