@@ -26,7 +26,7 @@ export default function App() {
   const [showRecipients, setShowRecipients] = useState(false)
   const [view, setView] = useState('list')
   const [showSettings, setShowSettings] = useState(false)
-  const [scope, setScope] = useState('upcoming')
+  const [scope, setScope] = useState('month')
   const [menuOpen, setMenuOpen] = useState(false)
 
   // Search, then scope. "Upcoming" keeps the list short on big teams.
@@ -38,16 +38,27 @@ export default function App() {
         [r.full_name, r.person_email, r.department].filter(Boolean).some((v) => v.toLowerCase().includes(q)),
       )
     }
-    if (scope === 'upcoming' && !q) {
-      out = out.filter((r) => { const ev = nextEvent(r); return ev && ev.days <= 60 })
+    // Searching always looks across everyone, so nobody is hidden by the filter.
+    if (scope !== 'all' && !q) {
+      const max = scope === 'today' ? 0 : scope === 'week' ? 7 : 30
+      out = out.filter((r) => { const ev = nextEvent(r); return ev && ev.days <= max })
     }
     return out
   }, [rows, query, scope])
 
-  const todayCount = useMemo(
-    () => rows.filter((r) => { const ev = nextEvent(r); return r.is_active && ev && ev.days === 0 }).length,
-    [rows],
-  )
+  const counts = useMemo(() => {
+    const days = rows
+      .filter((r) => r.is_active)
+      .map((r) => nextEvent(r))
+      .filter(Boolean)
+      .map((e) => e.days)
+    return {
+      today: days.filter((d) => d === 0).length,
+      week: days.filter((d) => d <= 7).length,
+      month: days.filter((d) => d <= 30).length,
+      all: rows.length,
+    }
+  }, [rows])
 
   const save = async (payload, wasEditing) => {
     if (wasEditing) await updateBirthday(code, payload)
@@ -190,38 +201,40 @@ export default function App() {
         </button>
       </div>
 
-      {/* Scope tabs + count */}
-      {!loading && !error && (
-        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-          {view === 'list' ? (
-            <div className="flex gap-0.5 rounded-lg bg-slate-100 p-0.5">
+      {/* The stats ARE the filter — reading them and using them is one action */}
+      {!loading && !error && view === 'list' && (
+        <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            { key: 'today', label: 'Today', n: counts.today, hot: true },
+            { key: 'week', label: 'Next 7 days', n: counts.week },
+            { key: 'month', label: 'Next 30 days', n: counts.month },
+            { key: 'all', label: 'Everyone', n: counts.all },
+          ].map((t) => {
+            const on = scope === t.key
+            const celebrating = t.hot && t.n > 0
+            return (
               <button
-                onClick={() => setScope('upcoming')}
-                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
-                  scope === 'upcoming' ? 'bg-white text-ink shadow-sm' : 'text-muted hover:text-ink'
+                key={t.key}
+                onClick={() => setScope(t.key)}
+                className={`rounded-xl border px-3 py-2 text-left transition ${
+                  on ? 'border-brand-400 bg-brand-50 ring-1 ring-brand-200'
+                     : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
-                Next 60 days
+                <div className={`text-lg font-extrabold leading-none ${celebrating ? 'text-accent-600' : 'text-ink'}`}>
+                  {celebrating && '🎉 '}{t.n}
+                </div>
+                <div className="mt-1 text-[11px] font-medium text-muted">{t.label}</div>
               </button>
-              <button
-                onClick={() => setScope('all')}
-                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
-                  scope === 'all' ? 'bg-white text-ink shadow-sm' : 'text-muted hover:text-ink'
-                }`}
-              >
-                All ({rows.length})
-              </button>
-            </div>
-          ) : <span />}
-          <p className="text-xs text-muted">
-            {filtered.length} shown
-            {todayCount > 0 && (
-              <span className="ml-1.5 rounded-full bg-accent-50 px-2 py-0.5 font-semibold text-accent-700">
-                🎉 {todayCount} today
-              </span>
-            )}
-          </p>
+            )
+          })}
         </div>
+      )}
+
+      {query && !loading && !error && (
+        <p className="mb-2 text-xs text-muted">
+          {filtered.length} match{filtered.length === 1 ? '' : 'es'} for “{query}” — searching everyone.
+        </p>
       )}
 
       {/* Body */}
