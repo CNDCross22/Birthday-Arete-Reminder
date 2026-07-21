@@ -46,6 +46,8 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 const dupKey = (name: string, date: string) => `${name.trim().toLowerCase()}|${date}`;
 const firstNameOf = (full: string) => full.trim().split(/\s+/)[0] || "there";
+// Kept for if HR ever wants the year count back in the anniversary copy
+// (e.g. "your 5th anniversary"). Their current wording says "another milestone".
 function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"], v = n % 100;
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
@@ -172,39 +174,50 @@ async function sendGreeting(
   if (!to) throw new Error("no recipient email");
   const name = firstNameOf(p.full_name);
 
-  let subject: string, heading: string, accent: string, paras: string[], signoff: string;
+  // ── HR-APPROVED COPY ───────────────────────────────────────────────────────
+  // This wording comes from HR. Please keep it in sync with them before editing.
+  let subject: string, heading: string, accent: string;
+  let opening: string, openingBold: boolean, paras: string[], closing: string, closingBold: boolean;
   if (kind === "birthday") {
     accent = "#7a5c8e";
     subject = `Happy Birthday, ${name}`;
     heading = "🎂 Happy Birthday";
+    opening = `Happy Birthday, ${name}! 🎉`;
+    openingBold = true;
     paras = [
-      `On behalf of everyone at Arete Care, we would like to wish you a very happy birthday. We hope the day is a joyful and restful one, spent in the company of the people who matter most to you.`,
-      `Thank you for the dedication, care, and warmth you bring to our team each day. We feel truly fortunate to have you with us, and we look forward to celebrating many more milestones together.`,
+      `Wishing you a wonderful birthday filled with happiness, good health, and special moments with your loved ones.`,
+      `Thank you for your dedication, compassion, and hard work at Arete Care. We truly value your commitment to making a positive difference in the lives of the people we support. Your contributions are greatly appreciated, and we are grateful to have you as part of our team.`,
+      `Have a fantastic birthday and a wonderful year ahead!`,
     ];
-    signoff = "With our very best wishes,";
+    closing = `From your Arete Care Family.`;
+    closingBold = false;
   } else {
-    const years = p.hire_date ? year - Number(p.hire_date.slice(0, 4)) : 0;
     accent = "#3a9ca3";
-    subject = `Congratulations on Your ${ordinal(years)} Work Anniversary, ${name}`;
-    heading = `🎉 ${years} Year${years === 1 ? "" : "s"} of Service`;
+    subject = `Congratulations on Your Work Anniversary, ${name}`;
+    heading = "🎉 Happy Work Anniversary";
+    opening = `Dear ${name},`;
+    openingBold = false;
     paras = [
-      `Today marks your ${ordinal(years)} anniversary with Arete Care, and we would like to take a moment to recognise this milestone and to thank you most sincerely.`,
-      `Over the past ${years} year${years === 1 ? "" : "s"}, your commitment, professionalism, and genuine care have made a meaningful difference to our team and to those we have the privilege of serving. We are proud to have you as part of the Arete Care family, and we look forward to the years ahead together.`,
+      `Congratulations on reaching another milestone with Arete Care!`,
+      `Thank you for your dedication, hard work, and commitment to making a positive difference in the lives of the people we support. Your compassion, professionalism, and contributions are truly valued, and we appreciate everything you do as part of our team.`,
+      `We are grateful to have you with us and look forward to celebrating many more milestones together. Wishing you continued success and fulfillment in the years ahead!`,
     ];
-    signoff = "With sincere appreciation,";
+    closing = `Thank you for being a valued member of the Arete Care family! 💙`;
+    closingBold = true;
   }
 
+  const wrap = (t: string, bold: boolean) => (bold ? `<strong>${esc(t)}</strong>` : esc(t));
   const bodyParas = [
-    `<p style="margin:0 0 16px;font-size:16px;line-height:1.75">Dear ${esc(name)},</p>`,
-    ...paras.map((t) => `<p style="margin:0 0 16px;font-size:15px;line-height:1.75;color:#2c2740">${esc(t)}</p>`),
-    `<p style="margin:22px 0 0;font-size:15px;line-height:1.75">${esc(signoff)}<br><strong>The Arete Care Team</strong></p>`,
+    `<p style="margin:0 0 16px;font-size:16px;line-height:1.7">${wrap(opening, openingBold)}</p>`,
+    ...paras.map((t) => `<p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#2c2740">${esc(t)}</p>`),
+    `<p style="margin:22px 0 0;font-size:15px;line-height:1.7">${wrap(closing, closingBold)}</p>`,
   ].join("");
 
   const html = `
     <div style="margin:0;padding:0;background:#f3f6f7">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f6f7;padding:24px 12px">
         <tr><td align="center">
-          <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;font-family:Georgia,'Times New Roman',serif;color:#2c2740">
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;font-family:'Segoe UI',Inter,system-ui,Arial,sans-serif;color:#2c2740">
             <tr><td style="background:${accent};padding:30px 28px;border-radius:14px 14px 0 0;text-align:center;font-family:'Segoe UI',Inter,system-ui,Arial,sans-serif">
               <div style="font-size:23px;font-weight:800;color:#ffffff;line-height:1.25">${heading}</div>
               <div style="font-size:12px;letter-spacing:.5px;color:#ffffff;opacity:.9;margin-top:8px">ARETE CARE · EMPOWERING SOULS</div>
