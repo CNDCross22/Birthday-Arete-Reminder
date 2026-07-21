@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Search, Send, LogOut, Loader2, WifiOff, Upload, Users, CalendarDays, List, Settings } from 'lucide-react'
+import { Plus, Search, Send, LogOut, Loader2, WifiOff, Upload, Users, CalendarDays, List, Settings, MoreHorizontal } from 'lucide-react'
 import { useBirthdays } from './hooks/useBirthdays'
 import { useToast } from './components/Toast'
 import { useAccess } from './auth/AccessGate'
@@ -26,14 +26,23 @@ export default function App() {
   const [showRecipients, setShowRecipients] = useState(false)
   const [view, setView] = useState('list')
   const [showSettings, setShowSettings] = useState(false)
+  const [scope, setScope] = useState('upcoming')
+  const [menuOpen, setMenuOpen] = useState(false)
 
+  // Search, then scope. "Upcoming" keeps the list short on big teams.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter((r) =>
-      [r.full_name, r.person_email, r.department].filter(Boolean).some((v) => v.toLowerCase().includes(q)),
-    )
-  }, [rows, query])
+    let out = rows
+    if (q) {
+      out = out.filter((r) =>
+        [r.full_name, r.person_email, r.department].filter(Boolean).some((v) => v.toLowerCase().includes(q)),
+      )
+    }
+    if (scope === 'upcoming' && !q) {
+      out = out.filter((r) => { const ev = nextEvent(r); return ev && ev.days <= 60 })
+    }
+    return out
+  }, [rows, query, scope])
 
   const todayCount = useMemo(
     () => rows.filter((r) => { const ev = nextEvent(r); return r.is_active && ev && ev.days === 0 }).length,
@@ -125,42 +134,54 @@ export default function App() {
             <CalendarDays size={16} />
           </button>
         </div>
-        <button
-          onClick={() => setShowImport(true)}
-          className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-ink hover:bg-slate-50"
-          title="Import from CSV or Excel"
-        >
-          <Upload size={16} /> <span className="hidden sm:inline">Import</span>
-        </button>
-        {!isDemo && hasFunctions && (
+        {/* Secondary actions tucked into one menu to keep the bar clean */}
+        <div className="relative">
           <button
-            onClick={() => setShowRecipients(true)}
-            className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-ink hover:bg-slate-50"
-            title="BCC copies of every greeting (e.g. HR)"
-          >
-            <Users size={16} /> <span className="hidden sm:inline">Copies</span>
-          </button>
-        )}
-        {!isDemo && hasFunctions && (
-          <button
-            onClick={runTest}
-            disabled={testing}
-            className="flex items-center gap-2 rounded-lg border border-accent-200 bg-white px-3 py-2.5 text-sm font-semibold text-accent-700 hover:bg-accent-50 disabled:opacity-60"
-            title="Preview a greeting"
-          >
-            {testing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            <span className="hidden sm:inline">Test</span>
-          </button>
-        )}
-        {!isDemo && hasFunctions && (
-          <button
-            onClick={() => setShowSettings(true)}
+            onClick={() => setMenuOpen((v) => !v)}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-500 hover:bg-slate-50 hover:text-ink"
-            title="Settings — send time & testing"
+            title="More actions"
           >
-            <Settings size={16} />
+            <MoreHorizontal size={16} />
           </button>
-        )}
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-card">
+                <button
+                  onClick={() => { setMenuOpen(false); setShowImport(true) }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-ink hover:bg-slate-50"
+                >
+                  <Upload size={15} className="text-slate-400" /> Import from CSV/Excel
+                </button>
+                {!isDemo && hasFunctions && (
+                  <>
+                    <button
+                      onClick={() => { setMenuOpen(false); setShowRecipients(true) }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-ink hover:bg-slate-50"
+                    >
+                      <Users size={15} className="text-slate-400" /> Copies (BCC)
+                    </button>
+                    <button
+                      onClick={() => { setMenuOpen(false); runTest() }}
+                      disabled={testing}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-ink hover:bg-slate-50 disabled:opacity-60"
+                    >
+                      {testing ? <Loader2 size={15} className="animate-spin text-slate-400" /> : <Send size={15} className="text-slate-400" />}
+                      Preview a greeting
+                    </button>
+                    <div className="my-1 border-t border-slate-100" />
+                    <button
+                      onClick={() => { setMenuOpen(false); setShowSettings(true) }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-ink hover:bg-slate-50"
+                    >
+                      <Settings size={15} className="text-slate-400" /> Settings
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
         <button
           onClick={() => setEditing({})}
           className="flex items-center gap-2 rounded-lg bg-brand-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
@@ -169,16 +190,38 @@ export default function App() {
         </button>
       </div>
 
-      {/* Summary chip */}
+      {/* Scope tabs + count */}
       {!loading && !error && (
-        <p className="mb-3 text-sm text-muted">
-          {rows.length} {rows.length === 1 ? 'person' : 'people'}
-          {todayCount > 0 && (
-            <span className="ml-1 rounded-full bg-accent-50 px-2 py-0.5 font-semibold text-accent-700">
-              🎉 {todayCount} celebrating today
-            </span>
-          )}
-        </p>
+        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+          {view === 'list' ? (
+            <div className="flex gap-0.5 rounded-lg bg-slate-100 p-0.5">
+              <button
+                onClick={() => setScope('upcoming')}
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                  scope === 'upcoming' ? 'bg-white text-ink shadow-sm' : 'text-muted hover:text-ink'
+                }`}
+              >
+                Next 60 days
+              </button>
+              <button
+                onClick={() => setScope('all')}
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                  scope === 'all' ? 'bg-white text-ink shadow-sm' : 'text-muted hover:text-ink'
+                }`}
+              >
+                All ({rows.length})
+              </button>
+            </div>
+          ) : <span />}
+          <p className="text-xs text-muted">
+            {filtered.length} shown
+            {todayCount > 0 && (
+              <span className="ml-1.5 rounded-full bg-accent-50 px-2 py-0.5 font-semibold text-accent-700">
+                🎉 {todayCount} today
+              </span>
+            )}
+          </p>
+        </div>
       )}
 
       {/* Body */}
