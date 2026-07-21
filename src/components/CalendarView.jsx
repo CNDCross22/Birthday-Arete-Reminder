@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { parseISO, yearsSince } from '../lib/dates'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -17,6 +17,7 @@ const VIS_LG = 4  // tall cells on a desktop monitor
 export default function CalendarView({ rows }) {
   const today = new Date()
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() + 1 })
+  const [openDay, setOpenDay] = useState(null) // day whose full list is shown
 
   const { cells, byDay, agenda } = useMemo(() => {
     const { y, m } = cursor
@@ -52,12 +53,12 @@ export default function CalendarView({ rows }) {
   const isToday = (d) =>
     d && cursor.y === today.getFullYear() && cursor.m === today.getMonth() + 1 && d === today.getDate()
 
-  const move = (delta) => setCursor(({ y, m }) => {
+  const move = (delta) => (setOpenDay(null), setCursor(({ y, m }) => {
     const nm = m + delta
     if (nm < 1) return { y: y - 1, m: 12 }
     if (nm > 12) return { y: y + 1, m: 1 }
     return { y, m: nm }
-  })
+  }))
 
   const weekdayOf = (day) => DOW[new Date(cursor.y, cursor.m - 1, day).getDay()]
 
@@ -95,11 +96,17 @@ export default function CalendarView({ rows }) {
           if (!d) return <div key={i} className="min-h-[46px] sm:min-h-[92px] lg:min-h-[116px]" />
           const evs = byDay[d] || []
           const has = evs.length > 0
+          // Days with people are buttons — the cell can't show every name, so
+          // clicking it (or the "+N more") opens the full list.
+          const Cell = has ? 'button' : 'div'
           return (
-            <div
+            <Cell
               key={i}
-              className={`min-h-[46px] overflow-hidden rounded-lg border p-1 sm:min-h-[92px] lg:min-h-[116px] lg:p-1.5 ${
-                has ? 'border-brand-200 bg-brand-50/60' : 'border-slate-100'
+              type={has ? 'button' : undefined}
+              onClick={has ? () => setOpenDay(d) : undefined}
+              title={has ? `${evs.length} on ${d} ${MONTHS[cursor.m - 1]} — click to see all` : undefined}
+              className={`min-h-[46px] w-full overflow-hidden rounded-lg border p-1 text-left sm:min-h-[92px] lg:min-h-[116px] lg:p-1.5 ${
+                has ? 'border-brand-200 bg-brand-50/60 hover:border-brand-400 hover:bg-brand-50' : 'border-slate-100'
               } ${isToday(d) ? 'ring-2 ring-accent-400' : ''}`}
             >
               <div className="flex items-start justify-between gap-1">
@@ -133,18 +140,18 @@ export default function CalendarView({ rows }) {
                     </span>
                   ))}
                   {evs.length > VIS_SM && (
-                    <span className="px-1 text-[10px] font-semibold text-brand-600 lg:hidden">
+                    <span className="px-1 text-[10px] font-semibold text-brand-600 underline decoration-dotted lg:hidden">
                       +{evs.length - VIS_SM} more
                     </span>
                   )}
                   {evs.length > VIS_LG && (
-                    <span className="hidden px-1 text-xs font-semibold text-brand-600 lg:block">
+                    <span className="hidden px-1 text-xs font-semibold text-brand-600 underline decoration-dotted lg:block">
                       +{evs.length - VIS_LG} more
                     </span>
                   )}
                 </div>
               )}
-            </div>
+            </Cell>
           )
         })}
       </div>
@@ -178,6 +185,38 @@ export default function CalendarView({ rows }) {
           </ul>
         )}
       </div>
+
+      {/* Everyone on one day — the cell can only ever show the first few */}
+      {openDay != null && (
+        <div className="fixed inset-0 z-40 grid place-items-center bg-ink/40 p-4 animate-fade-in" onMouseDown={() => setOpenDay(null)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-card animate-scale-in" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <div>
+                <h3 className="text-base font-bold text-ink">
+                  {weekdayOf(openDay)} {openDay} {MONTHS[cursor.m - 1]}
+                </h3>
+                <p className="text-xs text-muted">
+                  {(byDay[openDay] || []).length} celebration{(byDay[openDay] || []).length === 1 ? '' : 's'}
+                </p>
+              </div>
+              <button onClick={() => setOpenDay(null)} className="text-slate-400 hover:text-slate-600" title="Close">
+                <X size={18} />
+              </button>
+            </div>
+            <ul className="space-y-1">
+              {(byDay[openDay] || []).map((ev, i) => (
+                <li key={i} className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-slate-50">
+                  <span className="shrink-0">{ev.kind === 'birthday' ? '🎂' : '🎉'}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium text-ink">{ev.person.full_name}</span>
+                  <span className="shrink-0 text-xs text-muted">
+                    {ev.kind === 'birthday' ? 'birthday' : `${ev.years} yr${ev.years === 1 ? '' : 's'}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted">
         <span>🎂 Birthday</span>
